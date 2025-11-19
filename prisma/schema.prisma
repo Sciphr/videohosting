@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  videos        Video[]
+  clips         Video[]   @relation("ClippedBy")
+  comments      Comment[]
+  watchParties  WatchParty[]
+
+  @@map("users")
+}
+
+model Video {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  filePath        String
+  thumbnailPath   String?
+  duration        Int       // in seconds
+  videoType       VideoType
+  gameTitle       String?
+  viewCount       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // For clips - reference to parent video
+  parentVideoId   String?
+  parentVideo     Video?    @relation("VideoClips", fields: [parentVideoId], references: [id], onDelete: SetNull)
+  clips           Video[]   @relation("VideoClips")
+
+  // Who created the clip (if different from video owner)
+  clippedById     String?
+  clippedBy       User?     @relation("ClippedBy", fields: [clippedById], references: [id], onDelete: SetNull)
+
+  // Clip timing (if this is a clip)
+  clipStartTime   Int?      // in seconds
+  clipEndTime     Int?      // in seconds
+
+  comments        Comment[]
+  tags            Tag[]
+  watchParties    WatchParty[]
+
+  @@map("videos")
+}
+
+enum VideoType {
+  CLIP
+  FULL
+}
+
+model Comment {
+  id          String    @id @default(cuid())
+  text        String
+  timestamp   Int?      // null for general comments, specific second for timestamp comments
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId     String
+  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  tagType   TagType
+  tagValue  String
+
+  videoId   String
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("tags")
+}
+
+enum TagType {
+  GAME
+  EMOTION
+  CUSTOM
+}
+
+model WatchParty {
+  id          String    @id @default(cuid())
+  roomCode    String    @unique
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  hostUserId  String
+  host        User      @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+
+  videoId     String
+  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("watch_parties")
+}
