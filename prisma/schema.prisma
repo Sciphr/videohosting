@@ -10,109 +10,398 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  username      String    @unique
-  password      String
-  avatar        String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  videos        Video[]
-  clips         Video[]   @relation("ClippedBy")
-  comments      Comment[]
-  watchParties  WatchParty[]
-
-  @@map("users")
-}
-
-model Video {
-  id              String    @id @default(cuid())
-  title           String
-  description     String?
-  filePath        String
-  thumbnailPath   String?
-  duration        Int       // in seconds
-  videoType       VideoType
-  gameTitle       String?
-  viewCount       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // For clips - reference to parent video
-  parentVideoId   String?
-  parentVideo     Video?    @relation("VideoClips", fields: [parentVideoId], references: [id], onDelete: SetNull)
-  clips           Video[]   @relation("VideoClips")
-
-  // Who created the clip (if different from video owner)
-  clippedById     String?
-  clippedBy       User?     @relation("ClippedBy", fields: [clippedById], references: [id], onDelete: SetNull)
-
-  // Clip timing (if this is a clip)
-  clipStartTime   Int?      // in seconds
-  clipEndTime     Int?      // in seconds
-
-  comments        Comment[]
-  tags            Tag[]
-  watchParties    WatchParty[]
-
-  @@map("videos")
-}
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 enum VideoType {
-  CLIP
-  FULL
+  CLIP      // Short clips (15 seconds - 2 minutes)
+  FULL      // Full videos (10-30+ minutes)
 }
 
-model Comment {
-  id          String    @id @default(cuid())
-  text        String
-  timestamp   Int?      // null for general comments, specific second for timestamp comments
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  videoId     String
-  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@map("comments")
-}
-
-model Tag {
-  id        String    @id @default(cuid())
-  tagType   TagType
-  tagValue  String
-
-  videoId   String
-  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@map("tags")
+enum VideoStatus {
+  PROCESSING  // Being uploaded/processed
+  READY       // Available for viewing
+  FAILED      // Processing failed
+  DELETED     // Soft deleted
 }
 
 enum TagType {
-  GAME
-  EMOTION
-  CUSTOM
+  GAME        // Game title (e.g., "League of Legends")
+  EMOTION     // Emotional state (e.g., "Clutch", "Fail", "Rage")
+  CUSTOM      // User-defined tags
 }
 
-model WatchParty {
-  id          String    @id @default(cuid())
-  roomCode    String    @unique
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+enum NotificationType {
+  NEW_CLIP       // Someone clipped your video
+  MENTION        // Tagged in comment
+  COMMENT        // New comment on your video
+  WATCH_PARTY    // Invited to watch party
+  NEW_FOLLOWER   // Someone followed you
+}
 
-  hostUserId  String
-  host        User      @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+// ============================================================================
+// USER MODEL
+// ============================================================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String   @unique
+  displayName   String?
+  passwordHash  String
+  avatarUrl     String?
+  bio           String?
+
+  // Settings
+  isPrivate     Boolean  @default(false)
+  emailNotifications Boolean @default(true)
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  videos        Video[]           @relation("VideoUploader")
+  clippedVideos Video[]           @relation("VideoClipper")
+  comments      Comment[]
+  likes         Like[]
+  notifications Notification[]
+  hostedParties WatchParty[]      @relation("WatchPartyHost")
+  partyParticipations WatchPartyParticipant[]
+
+  // Following system
+  followers     Follow[]          @relation("Following")
+  following     Follow[]          @relation("Followers")
+
+  @@index([email])
+  @@index([username])
+}
+
+// ============================================================================
+// VIDEO MODEL
+// ============================================================================
+
+model Video {
+  id              String      @id @default(cuid())
+
+  // Basic info
+  title           String
+  description     String?
+  videoType       VideoType
+  status          VideoStatus @default(PROCESSING)
+
+  // File info
+  fileUrl         String      // MinIO/S3 URL
+  fileKey         String      // Storage key for deletion
+  thumbnailUrl    String?
+  previewUrl      String?     // For hover previews on clips
+
+  // Video metadata
+  duration        Int?        // Duration in seconds
+  fileSize        Int?        // Size in bytes
+  mimeType        String?
+  width           Int?        // Video width
+  height          Int?        // Video height
+
+  // Clipping support
+  parentVideoId   String?     // If this is a clip, reference to source video
+  parentVideo     Video?      @relation("VideoClips", fields: [parentVideoId], references: [id])
+  clips           Video[]     @relation("VideoClips")
+  clipStartTime   Float?      // Start time in parent video (seconds)
+  clipEndTime     Float?      // End time in parent video (seconds)
+
+  // Response/chain clips
+  responseToId    String?     // If this is a response to another clip
+  responseTo      Video?      @relation("ClipResponses", fields: [responseToId], references: [id])
+  responses       Video[]     @relation("ClipResponses")
+
+  // Ownership
+  uploaderId      String
+  uploader        User        @relation("VideoUploader", fields: [uploaderId], references: [id])
+
+  // If clipped by someone other than uploader
+  clippedById     String?
+  clippedBy       User?       @relation("VideoClipper", fields: [clippedById], references: [id])
+
+  // Game association
+  gameId          String?
+  game            Game?       @relation(fields: [gameId], references: [id])
+
+  // Stats
+  viewCount       Int         @default(0)
+  likeCount       Int         @default(0)
+  commentCount    Int         @default(0)
+  clipCount       Int         @default(0)
+
+  // Visibility
+  isPublic        Boolean     @default(true)
+  isFeatured      Boolean     @default(false)
+
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?   // Soft delete
+
+  // Relations
+  comments        Comment[]
+  likes           Like[]
+  tags            VideoTag[]
+  watchParties    WatchParty[]
+
+  // Multi-POV sync (linked videos from same game session)
+  povGroupId      String?     // Videos from same game session
+
+  @@index([uploaderId])
+  @@index([videoType])
+  @@index([status])
+  @@index([gameId])
+  @@index([parentVideoId])
+  @@index([createdAt])
+  @@index([povGroupId])
+}
+
+// ============================================================================
+// GAME MODEL
+// ============================================================================
+
+model Game {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique  // URL-friendly name
+  coverImageUrl String?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  videos        Video[]
+
+  @@index([slug])
+}
+
+// ============================================================================
+// COMMENT MODEL
+// ============================================================================
+
+model Comment {
+  id            String   @id @default(cuid())
+
+  // Content
+  text          String
+
+  // Timestamp comment feature (click to jump to moment)
+  videoTimestamp Float?  // Time in seconds, null for general comments
+
+  // Relations
+  videoId       String
+  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  // Nested comments (replies)
+  parentId      String?
+  parent        Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       Comment[] @relation("CommentReplies")
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  editedAt      DateTime?
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([parentId])
+}
+
+// ============================================================================
+// LIKE MODEL
+// ============================================================================
+
+model Like {
+  id        String   @id @default(cuid())
+
+  // Relations
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  // Prevent duplicate likes
+  @@unique([videoId, userId])
+  @@index([videoId])
+  @@index([userId])
+}
+
+// ============================================================================
+// TAG MODELS
+// ============================================================================
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   // URL-friendly
+  type      TagType
+
+  // For emotion tags, could include color/icon
+  color     String?
+  icon      String?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  videos    VideoTag[]
+
+  @@unique([slug, type])
+  @@index([type])
+}
+
+model VideoTag {
+  id        String   @id @default(cuid())
+
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([videoId, tagId])
+  @@index([videoId])
+  @@index([tagId])
+}
+
+// ============================================================================
+// WATCH PARTY MODELS
+// ============================================================================
+
+model WatchParty {
+  id          String   @id @default(cuid())
+
+  // Room info
+  roomCode    String   @unique  // Shareable code
+  name        String?
+
+  // Video being watched
+  videoId     String
+  video       Video    @relation(fields: [videoId], references: [id])
+
+  // Host
+  hostId      String
+  host        User     @relation("WatchPartyHost", fields: [hostId], references: [id])
+
+  // State
+  isActive    Boolean  @default(true)
+  currentTime Float    @default(0)  // Current playback position
+  isPlaying   Boolean  @default(false)
+
+  // Settings
+  maxParticipants Int  @default(10)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  endedAt     DateTime?
+
+  // Relations
+  participants WatchPartyParticipant[]
+
+  @@index([roomCode])
+  @@index([hostId])
+  @@index([isActive])
+}
+
+model WatchPartyParticipant {
+  id          String   @id @default(cuid())
+
+  partyId     String
+  party       WatchParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  joinedAt    DateTime @default(now())
+  leftAt      DateTime?
+
+  @@unique([partyId, userId])
+  @@index([partyId])
+  @@index([userId])
+}
+
+// ============================================================================
+// FOLLOW MODEL
+// ============================================================================
+
+model Follow {
+  id          String   @id @default(cuid())
+
+  followerId  String
+  follower    User     @relation("Followers", fields: [followerId], references: [id])
+
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ============================================================================
+// NOTIFICATION MODEL
+// ============================================================================
+
+model Notification {
+  id          String           @id @default(cuid())
+
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+
+  type        NotificationType
+  title       String
+  message     String
+
+  // Reference to related content
+  referenceId String?          // Video ID, Comment ID, etc.
+
+  isRead      Boolean          @default(false)
+
+  createdAt   DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// VIEW TRACKING (for accurate view counts)
+// ============================================================================
+
+model VideoView {
+  id          String   @id @default(cuid())
 
   videoId     String
-  video       Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
-  @@map("watch_parties")
+  // Can be anonymous or logged in
+  userId      String?
+
+  // For anonymous deduplication
+  ipHash      String?  // Hashed IP for privacy
+
+  // Watch session info
+  watchDuration Float? // How long they watched (seconds)
+
+  createdAt   DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([createdAt])
 }
