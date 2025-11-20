@@ -27,8 +27,14 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* Video Player */}
-      <WatchPageClient video={video} />
+      {/* Video Player, Like Button, and Comments */}
+      <WatchPageClient video={{
+        id: video.id,
+        fileUrl: video.fileUrl,
+        thumbnailUrl: video.thumbnailUrl,
+        likeCount: video.likeCount || 0,
+        commentCount: video.commentCount || 0,
+      }} />
 
       {/* Video Info */}
       <div className="bg-gray-900 rounded-lg p-6">
