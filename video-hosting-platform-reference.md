@@ -234,6 +234,66 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Suitable for Raspberry Pi deployment
   - For scale: Consider job queue (Bull/BullMQ) for async processing
 
+#### 11. Video Upload System
+- **Upload Form (`/upload`):**
+  - File picker with drag & drop support
+  - File preview with size display
+  - Real-time upload progress bar (0-100%)
+  - Metadata forms editable during upload
+  - Support for MP4, MOV, AVI, WebM up to 2GB
+- **Upload API (`POST /api/upload`):**
+  - Multipart form data handling
+  - File validation (type, size)
+  - Automatic video processing with FFmpeg
+  - Duration detection using FFprobe
+  - Automatic thumbnail generation
+  - Upload to MinIO storage
+  - Database entry creation with all metadata
+- **Progress Tracking:**
+  - XMLHttpRequest with progress events
+  - Visual progress bar showing percentage
+  - Status messages (uploading vs processing)
+  - No websockets needed - native browser events
+- **Metadata Management:**
+  - Title and description fields
+  - Video type selection (CLIP/FULL) with visual cards
+  - Game selection dropdown
+  - Inline game creation (add new games on the fly)
+  - Tag creation and management
+  - Tags displayed as removable chips
+  - All fields editable before submission
+- **Game Management:**
+  - `GET /api/games` - List all games
+  - `POST /api/games` - Create new game
+  - Inline creation during upload
+  - Automatic dropdown refresh after creation
+- **Tag Integration:**
+  - Create/attach tags during upload
+  - Tag input with Enter key support
+  - Visual tag chips with remove buttons
+  - Auto-create tags if they don't exist
+  - Associate via VideoTag junction table
+- **Processing Pipeline:**
+  1. Validate file (type, size)
+  2. Save to temp directory
+  3. Detect video duration with FFprobe
+  4. Generate thumbnail at 10% mark
+  5. Upload video to MinIO
+  6. Upload thumbnail to MinIO
+  7. Create database entry
+  8. Create/link tags
+  9. Clean up temp files
+  10. Redirect to video watch page
+- **Error Handling:**
+  - File type validation
+  - Size limit enforcement (2GB max)
+  - Processing error handling with cleanup
+  - User-friendly error messages
+- **Configuration:**
+  - Body size limit set to 2GB in next.config.ts
+  - Temp directory automatic cleanup
+  - MinIO integration via lib/minio.ts
+
 ### 🚧 In Progress / Planned
 
 #### Watch Together Mode
