@@ -3,58 +3,89 @@
 import { useEffect, useRef } from 'react'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
-import type Player from 'video.js/dist/types/player'
+import Player from 'video.js/dist/types/player'
 
 interface VideoPlayerProps {
   src: string
   poster?: string
-  autoplay?: boolean
-  className?: string
+  videoId: string
+  onTimeUpdate?: (currentTime: number) => void
+  onEnded?: () => void
 }
 
-export default function VideoPlayer({
-  src,
-  poster,
-  autoplay = false,
-  className = ''
-}: VideoPlayerProps) {
+export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnded }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<Player | null>(null)
 
   useEffect(() => {
-    if (!videoRef.current) return
+    // Make sure Video.js player is only initialized once
+    if (!playerRef.current && videoRef.current) {
+      const videoElement = document.createElement('video-js')
+      videoElement.classList.add('vjs-big-play-centered')
+      videoRef.current.appendChild(videoElement)
 
-    const videoElement = document.createElement('video-js')
-    videoElement.classList.add('vjs-big-play-centered', 'vjs-theme-gaming')
-    videoRef.current.appendChild(videoElement)
+      const player = videojs(videoElement, {
+        autoplay: false,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        preload: 'auto',
+        poster: poster || undefined,
+        playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+        controlBar: {
+          volumePanel: {
+            inline: false,
+          },
+        },
+        sources: [{
+          src: src,
+          type: 'video/mp4'
+        }]
+      }, () => {
+        console.log('Player is ready')
+      })
 
-    const player = videojs(videoElement, {
-      controls: true,
-      autoplay,
-      preload: 'auto',
-      fluid: true,
-      responsive: true,
-      playbackRates: [0.5, 1, 1.5, 2],
-      poster,
-      sources: [{
-        src,
-        type: 'video/mp4'
-      }]
-    })
+      // Time update event
+      if (onTimeUpdate) {
+        player.on('timeupdate', () => {
+          onTimeUpdate(player.currentTime() || 0)
+        })
+      }
 
-    playerRef.current = player
+      // Ended event
+      if (onEnded) {
+        player.on('ended', onEnded)
+      }
 
+      // Track view after watching 30 seconds
+      let viewTracked = false
+      player.on('timeupdate', () => {
+        if (!viewTracked && player.currentTime() && player.currentTime() > 30) {
+          viewTracked = true
+          fetch(`/api/videos/${videoId}/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ watchDuration: player.currentTime() }),
+          }).catch(() => {})
+        }
+      })
+
+      playerRef.current = player
+    }
+
+    // Cleanup
     return () => {
-      if (playerRef.current) {
-        playerRef.current.dispose()
+      const player = playerRef.current
+      if (player && !player.isDisposed()) {
+        player.dispose()
         playerRef.current = null
       }
     }
-  }, [src, poster, autoplay])
+  }, [src, poster, videoId, onTimeUpdate, onEnded])
 
   return (
-    <div data-vjs-player className={className}>
-      <div ref={videoRef} />
+    <div data-vjs-player>
+      <div ref={videoRef} className="video-js-custom" />
     </div>
   )
 }

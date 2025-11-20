@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
+import WatchPageClient from './WatchPageClient'
 
 async function getVideo(id: string) {
   try {
@@ -27,15 +28,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="max-w-6xl mx-auto">
       {/* Video Player */}
-      <div className="bg-black rounded-lg overflow-hidden mb-6">
-        <video
-          className="w-full aspect-video"
-          controls
-          src={video.fileUrl}
-        >
-          Your browser does not support the video tag.
-        </video>
-      </div>
+      <WatchPageClient video={video} />
 
       {/* Video Info */}
       <div className="bg-gray-900 rounded-lg p-6">

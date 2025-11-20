@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Providers from './providers'
 import Navigation from '@/components/Navigation'
 import './globals.css'
+import './video-player.css'
 
 export const metadata: Metadata = {
   title: 'GameClips - Share Your Gaming Moments',
