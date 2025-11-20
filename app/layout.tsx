@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { SessionProvider } from 'next-auth/react'
+import Providers from './providers'
 import Navigation from '@/components/Navigation'
 import './globals.css'
 
@@ -15,13 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#0f0f0f]">
-        <SessionProvider>
+      <body className="min-h-screen bg-gray-950">
+        <Providers>
           <Navigation />
-          <main className="max-w-7xl mx-auto px-4 py-8">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
           </main>
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   )
