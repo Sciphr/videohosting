@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import VideoPlayer from '@/components/VideoPlayer'
 import LikeButton from '@/components/LikeButton'
 import CommentSection from '@/components/CommentSection'
@@ -19,11 +20,38 @@ interface WatchPageClientProps {
 }
 
 export default function WatchPageClient({ video, isAuthenticated }: WatchPageClientProps) {
+  const router = useRouter()
   const playerRef = useRef<Player | null>(null)
   const [showClipCreator, setShowClipCreator] = useState(false)
+  const [isCreatingParty, setIsCreatingParty] = useState(false)
 
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
+  }
+
+  const handleStartWatchParty = async () => {
+    try {
+      setIsCreatingParty(true)
+      const res = await fetch('/api/watch-party', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ videoId: video.id }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to create watch party')
+      }
+
+      const watchParty = await res.json()
+      router.push(`/party/${watchParty.roomCode}`)
+    } catch (error) {
+      console.error('Failed to create watch party:', error)
+      alert('Failed to create watch party. Please try again.')
+    } finally {
+      setIsCreatingParty(false)
+    }
   }
 
   const handleTimestampClick = (timestamp: number) => {
@@ -45,22 +73,34 @@ export default function WatchPageClient({ video, isAuthenticated }: WatchPageCli
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <LikeButton
           videoId={video.id}
           initialLikeCount={video.likeCount}
         />
 
         {isAuthenticated && (
-          <button
-            onClick={() => setShowClipCreator(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-            </svg>
-            Create Clip
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleStartWatchParty}
+              disabled={isCreatingParty}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              {isCreatingParty ? 'Creating...' : 'Watch Party'}
+            </button>
+            <button
+              onClick={() => setShowClipCreator(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              </svg>
+              Create Clip
+            </button>
+          </div>
         )}
       </div>
 

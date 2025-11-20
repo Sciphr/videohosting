@@ -65,7 +65,18 @@ export default function Navigation() {
               >
                 Full Videos
               </Link>
-              
+
+              <Link
+                href="/party/join"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  pathname?.startsWith('/party')
+                    ? 'border-purple-500 text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+                }`}
+              >
+                Watch Parties
+              </Link>
+
               {session && (
                 <Link
                   href="/upload"

@@ -11,7 +11,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
 - MinIO (S3-compatible storage)
 - Tailwind CSS 4 (styling)
 - FFmpeg (video processing - integrated)
-- Socket.io (real-time features - to be integrated)
+- Socket.io 4.x (real-time features - integrated)
 
 ---
 
@@ -54,7 +54,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Protected API routes
   - Session-based authentication
 
-#### 3. API Routes (24 endpoints)
+#### 3. API Routes (30 endpoints)
 - **Video Routes:**
   - `GET /api/videos` - List videos with filtering (videoType, game, user)
   - `POST /api/videos` - Create new video
@@ -68,6 +68,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `POST /api/videos/[id]/like` - Like video
   - `DELETE /api/videos/[id]/like` - Unlike video
   - `GET /api/videos/[id]/clips` - Get clips from parent video
+  - `POST /api/videos/[id]/clips` - Create and process clip with FFmpeg
   - `POST /api/videos/[id]/tags` - Add tags to video
   - `DELETE /api/videos/[id]/tags/[tagId]` - Remove tag from video
 - **User Routes:**
@@ -80,14 +81,24 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `GET /api/users/[id]/following` - Get following list
 - **Auth Routes:**
   - `POST /api/auth/register` - User registration
+- **Upload Routes:**
+  - `POST /api/upload` - Upload video with FFmpeg processing
+- **Game Routes:**
+  - `GET /api/games` - List all games with video counts
+  - `POST /api/games` - Create new game
+- **Watch Party Routes:**
+  - `POST /api/watch-party` - Create new watch party
+  - `GET /api/watch-party/[roomCode]` - Get watch party details
+  - `POST /api/watch-party/[roomCode]/join` - Join watch party
 - **Other Routes:**
   - `GET /api/search` - Search videos, users, and games
   - `POST /api/tags` - Create custom tags
+  - `GET /api/socket` - Initialize Socket.io server (Pages API)
 
 #### 4. Frontend Pages & UI
 - **Core Pages:**
   - `/` - Home page with video grid and filtering
-  - `/watch/[id]` - Video watch page with player, comments, likes
+  - `/watch/[id]` - Video watch page with player, comments, likes, watch party creation
   - `/upload` - Video upload page (protected)
   - `/login` - Login page
   - `/register` - Registration page
@@ -95,9 +106,11 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `/clips` - Filtered page showing only clips
   - `/full-videos` - Filtered page showing only full videos
   - `/search` - Search results page with tabs (videos, users, games)
+  - `/party/[roomCode]` - Watch party room with synchronized playback and chat
+  - `/party/join` - Join watch party by entering room code
 - **Layout Components:**
   - Root layout with Providers wrapper
-  - Navigation component with search bar
+  - Navigation component with search bar and watch party link
   - Gaming-themed dark UI with blue/purple accents
   - Responsive design with Tailwind CSS
 
@@ -294,13 +307,79 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Temp directory automatic cleanup
   - MinIO integration via lib/minio.ts
 
-### 🚧 In Progress / Planned
+#### 12. Watch Parties (Watch Together Mode)
+- **Watch Party System:**
+  - Create watch parties from any video
+  - Unique 8-character room codes for easy sharing
+  - Real-time participant management
+  - Host and participant roles
+  - Active party status tracking
+- **Socket.io Real-time Features:**
+  - WebSocket connections via Socket.io server
+  - Custom server endpoint at `/api/socket`
+  - Event-driven architecture for real-time sync
+  - Automatic reconnection handling
+  - In-memory participant tracking
+- **Synchronized Playback:**
+  - Play/pause sync across all participants
+  - Seek/scrub synchronization
+  - Timestamp-based coordination
+  - Ignore local events to prevent loops
+  - Host and participants have equal control
+- **Real-time Chat:**
+  - Live text chat within watch parties
+  - User identification (displayName/username)
+  - Message timestamps
+  - Chat history during session
+  - Visual message bubbles with user info
+- **Participant Management:**
+  - Real-time participant list
+  - Join/leave notifications
+  - Display name and username
+  - Host badge for party creator
+  - "You" badge for current user
+  - Avatar placeholders with gradient backgrounds
+- **Watch Party Pages:**
+  - `/party/[roomCode]` - Watch party room
+  - `/party/join` - Join party by entering code
+  - "Watch Party" button on all video watch pages
+  - "Watch Parties" link in main navigation
+- **Watch Party API:**
+  - `POST /api/watch-party` - Create new party
+  - `GET /api/watch-party/[roomCode]` - Get party details
+  - `POST /api/watch-party/[roomCode]/join` - Join party
+- **UI Features:**
+  - Room code copy-to-clipboard
+  - Connection status indicator (green/red)
+  - Two-column layout (video + chat | participants)
+  - Gaming-themed purple accent colors
+  - Responsive grid layout
+  - Message input with send button
+  - Participant count display
+- **Technical Details:**
+  - Socket.io events: `party:join`, `party:leave`, `party:play`, `party:pause`, `party:seek`, `party:chat-message`
+  - TypeScript interfaces for type safety
+  - Client and server event definitions
+  - Player event listeners for user actions
+  - Event flag to prevent infinite sync loops
+  - Database tracking via WatchParty and WatchPartyParticipant models
+- **User Experience:**
+  - Seamless joining via room codes
+  - No lag synchronization
+  - Intuitive chat interface
+  - Clear participant visibility
+  - Easy party creation from any video
+- **Components:**
+  - `WatchPartyClient.tsx` - Main party interface
+  - `pages/api/socket.ts` - Socket.io server
+  - `lib/socket.ts` - Socket.io types and helpers
+- **Performance Notes:**
+  - WebSocket connections for low-latency sync
+  - In-memory participant storage (consider Redis for scale)
+  - Efficient event broadcasting to room members only
+  - Automatic cleanup on disconnect
 
-#### Watch Together Mode
-- Socket.io integration
-- Synchronized playback
-- Real-time chat
-- Room creation and joining
+### 🚧 In Progress / Planned
 
 #### Additional Features (Future)
 - Video transcoding with FFmpeg
