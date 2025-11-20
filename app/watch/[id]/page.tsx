@@ -28,13 +28,53 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="max-w-6xl mx-auto">
       {/* Video Player, Like Button, and Comments */}
-      <WatchPageClient video={{
-        id: video.id,
-        fileUrl: video.fileUrl,
-        thumbnailUrl: video.thumbnailUrl,
-        likeCount: video.likeCount || 0,
-        commentCount: video.commentCount || 0,
-      }} />
+      <WatchPageClient
+        video={{
+          id: video.id,
+          fileUrl: video.fileUrl,
+          thumbnailUrl: video.thumbnailUrl,
+          likeCount: video.likeCount || 0,
+          commentCount: video.commentCount || 0,
+        }}
+        isAuthenticated={!!session}
+      />
+
+      {/* Parent Video Link (if this is a clip) */}
+      {video.videoType === 'CLIP' && video.parentVideo && (
+        <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-blue-200 text-sm mb-2">
+                This is a clip from{' '}
+                <Link
+                  href={`/profile/${video.parentVideo.uploader.id}`}
+                  className="font-medium hover:text-blue-100 underline"
+                >
+                  {video.parentVideo.uploader.displayName || video.parentVideo.uploader.username}
+                </Link>
+                's video
+              </p>
+              <Link
+                href={`/watch/${video.parentVideo.id}`}
+                className="inline-flex items-center gap-2 text-white font-medium hover:text-blue-100"
+              >
+                <span>Watch full video: {video.parentVideo.title}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+              {video.clipStartTime !== null && video.clipEndTime !== null && (
+                <p className="text-blue-300 text-sm mt-1">
+                  Clip from {Math.floor(video.clipStartTime / 60)}:{(Math.floor(video.clipStartTime) % 60).toString().padStart(2, '0')} - {Math.floor(video.clipEndTime / 60)}:{(Math.floor(video.clipEndTime) % 60).toString().padStart(2, '0')}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Video Info */}
       <div className="bg-gray-900 rounded-lg p-6">

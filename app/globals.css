@@ -87,3 +87,62 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Custom range slider styling */
+input[type="range"].slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Slider track - Webkit */
+input[type="range"].slider-thumb::-webkit-slider-track {
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Slider track - Firefox */
+input[type="range"].slider-thumb::-moz-range-track {
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Slider thumb - Webkit */
+input[type="range"].slider-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Slider thumb - Firefox */
+input[type="range"].slider-thumb::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Slider thumb hover */
+input[type="range"].slider-thumb::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+}
+
+input[type="range"].slider-thumb::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+}

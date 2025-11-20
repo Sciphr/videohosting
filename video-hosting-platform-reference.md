@@ -179,14 +179,38 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Default view shows all videos
   - Sorted by creation date (newest first)
 
-### 🚧 In Progress / Planned
+#### 10. Video Clipping Tool
+- **ClipCreator Component:**
+  - Modal interface for creating clips from any video
+  - Dual range sliders for precise start/end time selection
+  - Real-time duration display with formatted timestamps
+  - Preview functionality (plays selected range)
+  - Title and description input
+  - Validation (5 seconds min, 2 minutes max)
+  - Custom gaming-themed slider styling
+- **Clip Creation API:**
+  - `POST /api/videos/[id]/clips` - Create new clip
+  - Validates time ranges and clip duration
+  - Links clip to parent video via `parentVideoId`
+  - Stores `clipStartTime` and `clipEndTime` in database
+  - Creates notification for parent video owner
+  - Status set to PROCESSING (ready for FFmpeg integration)
+- **Collaborative Clipping:**
+  - Any authenticated user can clip any video
+  - Clips link back to original video and creator
+  - "Clipped by" attribution stored in database
+- **UI Integration:**
+  - "Create Clip" button on all video watch pages
+  - Parent video info banner displayed on clips
+  - Shows clip time range from original video
+  - Related clips section on full videos
+  - Click parent video link to navigate to source
+- **Components:**
+  - `ClipCreator.tsx` - Main clipping interface
+  - Custom CSS for range sliders in `globals.css`
+- **Note:** Database structure ready for FFmpeg integration. Currently creates database entries; actual video extraction to be implemented with FFmpeg job queue.
 
-#### Video Clipping Tool
-- UI with video player and trim handles
-- Range slider for selecting start/end times
-- Preview functionality
-- FFmpeg integration for clip extraction
-- Save clips as new videos linked to parent
+### 🚧 In Progress / Planned
 
 #### Watch Together Mode
 - Socket.io integration
