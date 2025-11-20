@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // Enable experimental features for video handling
   experimental: {
     serverActions: {
-      bodySizeLimit: '500mb',
+      bodySizeLimit: '2gb',
     },
   },
   // Image optimization configuration

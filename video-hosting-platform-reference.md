@@ -4,11 +4,412 @@
 Building a video hosting platform for friends/family focused on gaming content. Think "YouTube + TikTok for gaming clips" with unique social features.
 
 **Tech Stack:**
-- Next.js (frontend/backend)
-- PostgreSQL (database)
-- Video.js or React Player (video playback)
-- FFmpeg (video processing)
-- Socket.io (real-time features)
+- Next.js 16.0.3 (frontend/backend) with App Router
+- PostgreSQL (database) with Prisma 7.0.0 ORM
+- Video.js 8.23.4 (video playback)
+- NextAuth v5 (authentication)
+- MinIO (S3-compatible storage)
+- Tailwind CSS 4 (styling)
+- FFmpeg (video processing - integrated)
+- Socket.io 4.x (real-time features - integrated)
+
+---
+
+## Implementation Status
+
+### ✅ Completed Features
+
+#### 1. Database & ORM (Prisma)
+- **Models Implemented (12 total):**
+  - User: Authentication, profiles, avatars, bio
+  - Video: Title, description, fileUrl, thumbnailUrl, videoType (CLIP/FULL), status, viewCount
+  - Game: Game catalog with relationships to videos
+  - Comment: Nested comments with videoTimestamp support
+  - Like: User likes on videos
+  - Tag: Custom tags and game-specific tags
+  - VideoTag: Many-to-many relationship between videos and tags
+  - WatchParty: Co-watching sessions with room codes
+  - WatchPartyParticipant: Participants in watch parties
+  - Follow: User follow relationships
+  - Notification: System notifications
+  - VideoView: View tracking with watch duration
+- **Features:**
+  - Soft delete support (deletedAt field)
+  - Video clipping support (parentVideoId, clipStartTime, clipEndTime)
+  - Proper indexes on foreign keys and common queries
+  - Cascade deletes where appropriate
+
+#### 2. Authentication & Authorization
+- **NextAuth v5 Configuration:**
+  - Credentials provider with bcryptjs password hashing
+  - Session management with JWT
+  - Custom session fields (username, id)
+  - TypeScript declarations for session types
+- **Auth Pages:**
+  - Login page (`/login`) with gaming-themed UI
+  - Register page (`/register`) with form validation
+  - Middleware for protected routes
+- **Security:**
+  - Password hashing with bcryptjs
+  - Protected API routes
+  - Session-based authentication
+
+#### 3. API Routes (30 endpoints)
+- **Video Routes:**
+  - `GET /api/videos` - List videos with filtering (videoType, game, user)
+  - `POST /api/videos` - Create new video
+  - `GET /api/videos/[id]` - Get single video with relations
+  - `PATCH /api/videos/[id]` - Update video metadata
+  - `DELETE /api/videos/[id]` - Soft delete video
+  - `POST /api/videos/[id]/view` - Track video views
+  - `GET /api/videos/[id]/comments` - List comments with nested replies
+  - `POST /api/videos/[id]/comments` - Create comment with optional timestamp
+  - `DELETE /api/videos/[id]/comments/[commentId]` - Delete comment
+  - `POST /api/videos/[id]/like` - Like video
+  - `DELETE /api/videos/[id]/like` - Unlike video
+  - `GET /api/videos/[id]/clips` - Get clips from parent video
+  - `POST /api/videos/[id]/clips` - Create and process clip with FFmpeg
+  - `POST /api/videos/[id]/tags` - Add tags to video
+  - `DELETE /api/videos/[id]/tags/[tagId]` - Remove tag from video
+- **User Routes:**
+  - `GET /api/users/[id]` - Get user profile with stats
+  - `PATCH /api/users/[id]` - Update user profile
+  - `GET /api/users/[id]/videos` - Get user's videos
+  - `POST /api/users/[id]/follow` - Follow user
+  - `DELETE /api/users/[id]/follow` - Unfollow user
+  - `GET /api/users/[id]/followers` - Get followers list
+  - `GET /api/users/[id]/following` - Get following list
+- **Auth Routes:**
+  - `POST /api/auth/register` - User registration
+- **Upload Routes:**
+  - `POST /api/upload` - Upload video with FFmpeg processing
+- **Game Routes:**
+  - `GET /api/games` - List all games with video counts
+  - `POST /api/games` - Create new game
+- **Watch Party Routes:**
+  - `POST /api/watch-party` - Create new watch party
+  - `GET /api/watch-party/[roomCode]` - Get watch party details
+  - `POST /api/watch-party/[roomCode]/join` - Join watch party
+- **Other Routes:**
+  - `GET /api/search` - Search videos, users, and games
+  - `POST /api/tags` - Create custom tags
+  - `GET /api/socket` - Initialize Socket.io server (Pages API)
+
+#### 4. Frontend Pages & UI
+- **Core Pages:**
+  - `/` - Home page with video grid and filtering
+  - `/watch/[id]` - Video watch page with player, comments, likes, watch party creation
+  - `/upload` - Video upload page (protected)
+  - `/login` - Login page
+  - `/register` - Registration page
+  - `/profile/[id]` - User profile with stats, videos, edit/follow functionality
+  - `/clips` - Filtered page showing only clips
+  - `/full-videos` - Filtered page showing only full videos
+  - `/search` - Search results page with tabs (videos, users, games)
+  - `/party/[roomCode]` - Watch party room with synchronized playback and chat
+  - `/party/join` - Join watch party by entering room code
+- **Layout Components:**
+  - Root layout with Providers wrapper
+  - Navigation component with search bar and watch party link
+  - Gaming-themed dark UI with blue/purple accents
+  - Responsive design with Tailwind CSS
+- **Video Card Component:**
+  - Thumbnail with hover opacity effect
+  - Duration badge overlay on thumbnail
+  - Video title (2-line clamp)
+  - Uploader name/display name
+  - View count with locale formatting (e.g., "1,234 views")
+  - Upload time relative format (e.g., "2 days ago")
+  - Game badge display
+  - Hover ring effect for interactivity
+  - Responsive grid layout (1-4 columns based on screen size)
+
+#### 5. Video Player (Video.js)
+- **Features:**
+  - Custom gaming-themed CSS styling
+  - Playback speed controls (0.5x to 2x)
+  - Responsive and fluid player
+  - Poster/thumbnail support
+  - Automatic view tracking after 30 seconds
+  - Player instance exposed for timestamp seeking
+- **Integration:**
+  - `VideoPlayer` component with cleanup on unmount
+  - `onPlayerReady` callback for parent components
+  - `onTimeUpdate` and `onEnded` event handlers
+- **Video Page UI:**
+  - Video title and metadata section
+  - Uploader name with link to profile
+  - Game badge display
+  - Upload date (formatted as "Jan 1, 2024")
+  - Tags display with hashtag styling
+  - View count display
+  - Video description (expandable text)
+  - Parent video link for clips
+  - Action buttons: Like, Share (copy link), Watch Party, Create Clip
+  - Share button with "Copied!" feedback
+  - Related clips section for full videos
+- **Location:** `/components/VideoPlayer.tsx`, `/app/watch/[id]/page.tsx`
+
+#### 6. Comments & Likes System
+- **Comment Features:**
+  - Nested/threaded comments (replies)
+  - Timestamp comments that link to video moments
+  - Click timestamp to jump to that moment in video
+  - Delete functionality (auth required)
+  - Real-time updates after posting
+  - User avatars and display names
+  - Relative timestamps (e.g., "2 hours ago")
+- **Like Features:**
+  - Toggle like/unlike with heart icon
+  - Visual feedback (red when liked, gray when not)
+  - Real-time like count updates
+  - Optimistic UI updates
+- **Components:**
+  - `Comment.tsx` - Individual comment with timestamp badge
+  - `CommentSection.tsx` - Comment list and form
+  - `LikeButton.tsx` - Like toggle button
+
+#### 7. Search Functionality
+- **Search API:**
+  - Full-text search across videos (title, description, tags, game name)
+  - User search (username, displayName)
+  - Game search (name)
+  - Filtering by type (all, videos, users, games)
+  - Pagination support (limit, offset)
+- **Search UI:**
+  - Search bar in navigation header
+  - Search results page with tabs
+  - Video cards in grid layout
+  - User cards with avatar, stats, and bio
+  - Game cards with video count
+- **Location:** `/api/search/route.ts`, `/app/search/SearchPageClient.tsx`
+
+#### 8. User Profiles
+- **Profile Features:**
+  - User avatar (default gradient if no avatar)
+  - Display name and username
+  - Bio/description
+  - Stats: video count, follower count, following count
+  - Grid of user's uploaded videos
+  - Edit profile modal (for own profile)
+  - Follow/unfollow button (for other users)
+- **Edit Functionality:**
+  - Update display name, bio, avatar URL
+  - Real-time updates
+  - Protected (users can only edit their own profile)
+- **Components:**
+  - `ProfileClient.tsx` - Client-side interactivity
+  - `EditProfileModal.tsx` - Profile editing modal
+
+#### 9. Video Filtering
+- **Clips Page (`/clips`):**
+  - Shows only videos with videoType=CLIP
+  - Gaming-themed header
+  - Grid layout with VideoCard components
+- **Full Videos Page (`/full-videos`):**
+  - Shows only videos with videoType=FULL
+  - Same layout as clips page
+  - Links to related clips displayed on watch page
+- **Home Page Filtering:**
+  - Default view shows all videos
+  - Sorted by creation date (newest first)
+
+#### 10. Video Clipping Tool with FFmpeg Processing
+- **ClipCreator Component:**
+  - Modal interface for creating clips from any video
+  - Dual range sliders for precise start/end time selection
+  - Real-time duration display with formatted timestamps
+  - Preview functionality (plays selected range)
+  - Title and description input
+  - Validation (2 seconds min, 2 minutes max)
+  - Custom gaming-themed slider styling
+- **Clip Creation API:**
+  - `POST /api/videos/[id]/clips` - Create and process clip
+  - Validates time ranges and clip duration
+  - Links clip to parent video via `parentVideoId`
+  - Stores `clipStartTime` and `clipEndTime` in database
+  - Creates notification for parent video owner
+  - **Full FFmpeg integration with automatic processing**
+- **FFmpeg Processing Pipeline:**
+  - Downloads parent video from MinIO to temp directory
+  - Extracts clip segment using FFmpeg with stream copy (`-c copy`)
+  - Generates thumbnail from middle of clip
+  - Uploads clip and thumbnail to MinIO
+  - Updates database with new URLs and status=READY
+  - Cleans up temporary files automatically
+  - Fallback: If processing fails, clip entry remains with PROCESSING status
+- **MinIO Integration:**
+  - `lib/minio.ts` - Download/upload utilities
+  - Supports extracting S3 keys from URLs
+  - Automatic directory creation for uploads
+  - Stream-based downloads for efficiency
+- **FFmpeg Utilities:**
+  - `lib/ffmpeg.ts` - Video processing functions
+  - `extractClip()` - Fast clip extraction with stream copy
+  - `generateThumbnail()` - Thumbnail generation at timestamp
+  - `getVideoDuration()` - FFprobe duration detection
+  - `checkFFmpegAvailability()` - System check utility
+- **Collaborative Clipping:**
+  - Any authenticated user can clip any video
+  - Clips link back to original video and creator
+  - "Clipped by" attribution stored in database
+  - Each clip gets unique ID and dedicated storage
+- **UI Integration:**
+  - "Create Clip" button on all video watch pages
+  - Parent video info banner displayed on clips
+  - Shows clip time range from original video
+  - Related clips section on full videos
+  - Click parent video link to navigate to source
+- **Components:**
+  - `ClipCreator.tsx` - Main clipping interface
+  - Custom CSS for range sliders in `globals.css`
+- **Performance Notes:**
+  - Stream copy (`-c copy`) makes extraction very fast (seconds, not minutes)
+  - No re-encoding needed - preserves original quality
+  - Suitable for Raspberry Pi deployment
+  - For scale: Consider job queue (Bull/BullMQ) for async processing
+
+#### 11. Video Upload System
+- **Upload Form (`/upload`):**
+  - File picker with drag & drop support
+  - File preview with size display
+  - Real-time upload progress bar (0-100%)
+  - Metadata forms editable during upload
+  - Support for MP4, MOV, AVI, WebM up to 2GB
+- **Upload API (`POST /api/upload`):**
+  - Multipart form data handling
+  - File validation (type, size)
+  - Automatic video processing with FFmpeg
+  - Duration detection using FFprobe
+  - Automatic thumbnail generation
+  - Upload to MinIO storage
+  - Database entry creation with all metadata
+- **Progress Tracking:**
+  - XMLHttpRequest with progress events
+  - Visual progress bar showing percentage
+  - Status messages (uploading vs processing)
+  - No websockets needed - native browser events
+- **Metadata Management:**
+  - Title and description fields
+  - Video type selection (CLIP/FULL) with visual cards
+  - Game selection dropdown
+  - Inline game creation (add new games on the fly)
+  - Tag creation and management
+  - Tags displayed as removable chips
+  - All fields editable before submission
+- **Game Management:**
+  - `GET /api/games` - List all games
+  - `POST /api/games` - Create new game
+  - Inline creation during upload
+  - Automatic dropdown refresh after creation
+- **Tag Integration:**
+  - Create/attach tags during upload
+  - Tag input with Enter key support
+  - Visual tag chips with remove buttons
+  - Auto-create tags if they don't exist
+  - Associate via VideoTag junction table
+- **Processing Pipeline:**
+  1. Validate file (type, size)
+  2. Save to temp directory
+  3. Detect video duration with FFprobe
+  4. Generate thumbnail at 10% mark
+  5. Upload video to MinIO
+  6. Upload thumbnail to MinIO
+  7. Create database entry
+  8. Create/link tags
+  9. Clean up temp files
+  10. Redirect to video watch page
+- **Error Handling:**
+  - File type validation
+  - Size limit enforcement (2GB max)
+  - Processing error handling with cleanup
+  - User-friendly error messages
+- **Configuration:**
+  - Body size limit set to 2GB in next.config.ts
+  - Temp directory automatic cleanup
+  - MinIO integration via lib/minio.ts
+
+#### 12. Watch Parties (Watch Together Mode)
+- **Watch Party System:**
+  - Create watch parties from any video
+  - Unique 8-character room codes for easy sharing
+  - Real-time participant management
+  - Host and participant roles
+  - Active party status tracking
+- **Socket.io Real-time Features:**
+  - WebSocket connections via Socket.io server
+  - Custom server endpoint at `/api/socket`
+  - Event-driven architecture for real-time sync
+  - Automatic reconnection handling
+  - In-memory participant tracking
+- **Synchronized Playback:**
+  - Play/pause sync across all participants
+  - Seek/scrub synchronization
+  - Timestamp-based coordination
+  - Ignore local events to prevent loops
+  - Host and participants have equal control
+- **Real-time Chat:**
+  - Live text chat within watch parties
+  - User identification (displayName/username)
+  - Message timestamps
+  - Chat history during session
+  - Visual message bubbles with user info
+- **Participant Management:**
+  - Real-time participant list
+  - Join/leave notifications
+  - Display name and username
+  - Host badge for party creator
+  - "You" badge for current user
+  - Avatar placeholders with gradient backgrounds
+- **Watch Party Pages:**
+  - `/party/[roomCode]` - Watch party room
+  - `/party/join` - Join party by entering code
+  - "Watch Party" button on all video watch pages
+  - "Watch Parties" link in main navigation
+- **Watch Party API:**
+  - `POST /api/watch-party` - Create new party
+  - `GET /api/watch-party/[roomCode]` - Get party details
+  - `POST /api/watch-party/[roomCode]/join` - Join party
+- **UI Features:**
+  - Room code copy-to-clipboard
+  - Connection status indicator (green/red)
+  - Two-column layout (video + chat | participants)
+  - Gaming-themed purple accent colors
+  - Responsive grid layout
+  - Message input with send button
+  - Participant count display
+- **Technical Details:**
+  - Socket.io events: `party:join`, `party:leave`, `party:play`, `party:pause`, `party:seek`, `party:chat-message`
+  - TypeScript interfaces for type safety
+  - Client and server event definitions
+  - Player event listeners for user actions
+  - Event flag to prevent infinite sync loops
+  - Database tracking via WatchParty and WatchPartyParticipant models
+- **User Experience:**
+  - Seamless joining via room codes
+  - No lag synchronization
+  - Intuitive chat interface
+  - Clear participant visibility
+  - Easy party creation from any video
+- **Components:**
+  - `WatchPartyClient.tsx` - Main party interface
+  - `pages/api/socket.ts` - Socket.io server
+  - `lib/socket.ts` - Socket.io types and helpers
+- **Performance Notes:**
+  - WebSocket connections for low-latency sync
+  - In-memory participant storage (consider Redis for scale)
+  - Efficient event broadcasting to room members only
+  - Automatic cleanup on disconnect
+
+### 🚧 In Progress / Planned
+
+#### Additional Features (Future)
+- Video transcoding with FFmpeg
+- Multi-resolution support (HLS/DASH)
+- OCR stat detection
+- Reaction recordings
+- Auto-generated compilations
+- Discord integration
 
 ---
 

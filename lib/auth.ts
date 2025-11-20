@@ -26,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const isPasswordValid = await compare(
           credentials.password as string,
-          user.password
+          user.passwordHash
         )
 
         if (!isPasswordValid) {
@@ -36,7 +36,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           id: user.id,
           email: user.email,
-          name: user.username,
+          name: user.displayName || user.username,
+          username: user.username,
         }
       }
     })
@@ -51,12 +52,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
+        token.username = user.username
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
+        session.user.username = token.username as string
       }
       return session
     }

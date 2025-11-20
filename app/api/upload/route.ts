@@ -1,84 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, BUCKET_NAME } from '@/lib/s3-client';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { uploadToMinIO } from '@/lib/minio'
+import { generateThumbnail, getVideoDuration } from '@/lib/ffmpeg'
+import { writeFile, mkdir } from 'fs/promises'
+import fs from 'fs'
+import path from 'path'
+import { randomUUID } from 'crypto'
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
-    // Validate file type (video files only)
-    if (!file.type.startsWith('video/')) {
-      return NextResponse.json(
-        { error: 'Only video files are allowed' },
-        { status: 400 }
-      );
-    }
-
-    // Generate a unique filename
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const key = `videos/${timestamp}-${sanitizedName}`;
-
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Upload to MinIO
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: buffer,
-      ContentType: file.type,
-    });
-
-    await s3Client.send(command);
-
-    // Construct the URL to access the video
-    const endpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-    const videoUrl = `${endpoint}/${BUCKET_NAME}/${key}`;
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video uploaded successfully',
-      url: videoUrl,
-      key: key,
-      filename: file.name,
-      size: file.size,
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json(
-      { error: 'Failed to upload video' },
-      { status: 500 }
-    );
-  }
-}
-
-// Configure max file size (e.g., 500MB for videos)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { v4 as uuidv4 } from 'uuid'
-import prisma from '@/lib/prisma'
-
-export async function POST(request: Request) {
-  try {
-    const session = await auth()
-
+    const session = await getServerSession(authOptions)
+    
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -87,85 +21,192 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData()
-    const video = formData.get('video') as File
+    const file = formData.get('file') as File
     const title = formData.get('title') as string
     const description = formData.get('description') as string
     const videoType = formData.get('videoType') as 'CLIP' | 'FULL'
-    const gameTitle = formData.get('gameTitle') as string
+    const gameId = formData.get('gameId') as string | null
+    const tags = formData.get('tags') as string // JSON string array
 
-    if (!video || !title) {
+    // Validate file
+    if (!file) {
       return NextResponse.json(
-        { error: 'Video and title are required' },
+        { error: 'No file uploaded' },
         { status: 400 }
       )
     }
 
     // Validate file type
-    if (!video.type.startsWith('video/')) {
+    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']
+    if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type' },
+        { error: 'Invalid file type. Only MP4, MOV, AVI, and WebM are allowed' },
         { status: 400 }
       )
     }
 
-    // Validate file size (500MB max)
-    const maxSize = 524288000
-    if (video.size > maxSize) {
+    // Validate file size (max 2GB)
+    const maxSize = 2 * 1024 * 1024 * 1024 // 2GB
+    if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 500MB' },
+        { error: 'File too large. Maximum size is 2GB' },
         { status: 400 }
       )
     }
 
-    // Create upload directory
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'videos')
-    await mkdir(uploadDir, { recursive: true })
+    // Validate metadata
+    if (!title || title.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Title is required' },
+        { status: 400 }
+      )
+    }
 
-    // Generate unique filename
-    const ext = video.name.split('.').pop() || 'mp4'
-    const filename = `${uuidv4()}.${ext}`
-    const filepath = join(uploadDir, filename)
+    if (!videoType || (videoType !== 'CLIP' && videoType !== 'FULL')) {
+      return NextResponse.json(
+        { error: 'Invalid video type' },
+        { status: 400 }
+      )
+    }
 
-    // Save file
-    const bytes = await video.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filepath, buffer)
+    const videoId = randomUUID()
+    const tempDir = path.join(process.cwd(), 'tmp', videoId)
 
-    // Get video duration (simplified - in production use ffprobe)
-    // For now, we'll estimate based on file size
-    const estimatedDuration = Math.floor(video.size / 100000) // rough estimate
+    try {
+      // Create temp directory
+      await mkdir(tempDir, { recursive: true })
 
-    // Create database entry
-    const videoRecord = await prisma.video.create({
-      data: {
-        title,
-        description: description || null,
-        filePath: `/uploads/videos/${filename}`,
-        duration: estimatedDuration,
-        videoType: videoType || 'CLIP',
-        gameTitle: gameTitle || null,
-        userId: session.user.id
-      },
-      include: {
-        user: true
+      // Save uploaded file to temp
+      const bytes = await file.arrayBuffer()
+      const buffer = Buffer.from(bytes)
+      
+      const fileExtension = path.extname(file.name) || '.mp4'
+      const tempVideoPath = path.join(tempDir, `video${fileExtension}`)
+      await writeFile(tempVideoPath, buffer)
+
+      console.log(`Processing upload ${videoId}: detecting duration...`)
+
+      // Get video duration
+      const duration = await getVideoDuration(tempVideoPath)
+
+      console.log(`Processing upload ${videoId}: generating thumbnail...`)
+
+      // Generate thumbnail (at 1 second or 10% of duration)
+      const thumbnailTimestamp = Math.min(1, duration * 0.1)
+      const tempThumbnailPath = path.join(tempDir, 'thumbnail.jpg')
+      await generateThumbnail(tempVideoPath, tempThumbnailPath, thumbnailTimestamp)
+
+      console.log(`Processing upload ${videoId}: uploading to MinIO...`)
+
+      // Upload video to MinIO
+      const videoS3Key = `videos/${videoId}${fileExtension}`
+      const videoUrl = await uploadToMinIO(tempVideoPath, videoS3Key, file.type)
+
+      // Upload thumbnail to MinIO
+      const thumbnailS3Key = `thumbnails/${videoId}.jpg`
+      const thumbnailUrl = await uploadToMinIO(tempThumbnailPath, thumbnailS3Key, 'image/jpeg')
+
+      console.log(`Processing upload ${videoId}: creating database entry...`)
+
+      // Parse tags
+      let tagNames: string[] = []
+      try {
+        if (tags) {
+          tagNames = JSON.parse(tags)
+        }
+      } catch (e) {
+        console.error('Failed to parse tags:', e)
       }
-    })
 
-    return NextResponse.json({
-      message: 'Video uploaded successfully',
-      video: videoRecord
-    })
+      // Create video entry in database
+      const video = await prisma.video.create({
+        data: {
+          id: videoId,
+          title: title.trim(),
+          description: description?.trim() || null,
+          uploadedById: session.user.id,
+          videoType: videoType,
+          fileUrl: videoUrl,
+          thumbnailUrl: thumbnailUrl,
+          duration: duration,
+          gameId: gameId || null,
+          status: 'READY',
+        },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            }
+          },
+          game: true,
+        }
+      })
+
+      // Create tags if provided
+      if (tagNames.length > 0) {
+        for (const tagName of tagNames) {
+          const trimmedTag = tagName.trim()
+          if (trimmedTag) {
+            // Find or create tag
+            let tag = await prisma.tag.findFirst({
+              where: { name: trimmedTag }
+            })
+
+            if (!tag) {
+              tag = await prisma.tag.create({
+                data: {
+                  name: trimmedTag,
+                  type: 'CUSTOM'
+                }
+              })
+            }
+
+            // Associate tag with video
+            await prisma.videoTag.create({
+              data: {
+                videoId: video.id,
+                tagId: tag.id
+              }
+            })
+          }
+        }
+      }
+
+      console.log(`Processing upload ${videoId}: cleaning up temp files...`)
+
+      // Clean up temp files
+      fs.rmSync(tempDir, { recursive: true, force: true })
+
+      console.log(`Upload ${videoId} completed successfully!`)
+
+      return NextResponse.json({
+        success: true,
+        video: video
+      }, { status: 201 })
+
+    } catch (processingError) {
+      console.error('Upload processing error:', processingError)
+      
+      // Clean up temp files on error
+      try {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true })
+        }
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError)
+      }
+
+      throw processingError
+    }
+
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { error: 'Failed to upload video' },
+      { error: 'Failed to upload video. Please try again.' },
       { status: 500 }
     )
-  }
-}
-
-export const config = {
-  api: {
-    bodyParser: false
   }
 }
