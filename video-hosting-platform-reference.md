@@ -4,11 +4,203 @@
 Building a video hosting platform for friends/family focused on gaming content. Think "YouTube + TikTok for gaming clips" with unique social features.
 
 **Tech Stack:**
-- Next.js (frontend/backend)
-- PostgreSQL (database)
-- Video.js or React Player (video playback)
-- FFmpeg (video processing)
-- Socket.io (real-time features)
+- Next.js 16.0.3 (frontend/backend) with App Router
+- PostgreSQL (database) with Prisma 7.0.0 ORM
+- Video.js 8.23.4 (video playback)
+- NextAuth v5 (authentication)
+- MinIO (S3-compatible storage)
+- Tailwind CSS 4 (styling)
+- FFmpeg (video processing - to be integrated)
+- Socket.io (real-time features - to be integrated)
+
+---
+
+## Implementation Status
+
+### ✅ Completed Features
+
+#### 1. Database & ORM (Prisma)
+- **Models Implemented (12 total):**
+  - User: Authentication, profiles, avatars, bio
+  - Video: Title, description, fileUrl, thumbnailUrl, videoType (CLIP/FULL), status, viewCount
+  - Game: Game catalog with relationships to videos
+  - Comment: Nested comments with videoTimestamp support
+  - Like: User likes on videos
+  - Tag: Custom tags and game-specific tags
+  - VideoTag: Many-to-many relationship between videos and tags
+  - WatchParty: Co-watching sessions with room codes
+  - WatchPartyParticipant: Participants in watch parties
+  - Follow: User follow relationships
+  - Notification: System notifications
+  - VideoView: View tracking with watch duration
+- **Features:**
+  - Soft delete support (deletedAt field)
+  - Video clipping support (parentVideoId, clipStartTime, clipEndTime)
+  - Proper indexes on foreign keys and common queries
+  - Cascade deletes where appropriate
+
+#### 2. Authentication & Authorization
+- **NextAuth v5 Configuration:**
+  - Credentials provider with bcryptjs password hashing
+  - Session management with JWT
+  - Custom session fields (username, id)
+  - TypeScript declarations for session types
+- **Auth Pages:**
+  - Login page (`/login`) with gaming-themed UI
+  - Register page (`/register`) with form validation
+  - Middleware for protected routes
+- **Security:**
+  - Password hashing with bcryptjs
+  - Protected API routes
+  - Session-based authentication
+
+#### 3. API Routes (24 endpoints)
+- **Video Routes:**
+  - `GET /api/videos` - List videos with filtering (videoType, game, user)
+  - `POST /api/videos` - Create new video
+  - `GET /api/videos/[id]` - Get single video with relations
+  - `PATCH /api/videos/[id]` - Update video metadata
+  - `DELETE /api/videos/[id]` - Soft delete video
+  - `POST /api/videos/[id]/view` - Track video views
+  - `GET /api/videos/[id]/comments` - List comments with nested replies
+  - `POST /api/videos/[id]/comments` - Create comment with optional timestamp
+  - `DELETE /api/videos/[id]/comments/[commentId]` - Delete comment
+  - `POST /api/videos/[id]/like` - Like video
+  - `DELETE /api/videos/[id]/like` - Unlike video
+  - `GET /api/videos/[id]/clips` - Get clips from parent video
+  - `POST /api/videos/[id]/tags` - Add tags to video
+  - `DELETE /api/videos/[id]/tags/[tagId]` - Remove tag from video
+- **User Routes:**
+  - `GET /api/users/[id]` - Get user profile with stats
+  - `PATCH /api/users/[id]` - Update user profile
+  - `GET /api/users/[id]/videos` - Get user's videos
+  - `POST /api/users/[id]/follow` - Follow user
+  - `DELETE /api/users/[id]/follow` - Unfollow user
+  - `GET /api/users/[id]/followers` - Get followers list
+  - `GET /api/users/[id]/following` - Get following list
+- **Auth Routes:**
+  - `POST /api/auth/register` - User registration
+- **Other Routes:**
+  - `GET /api/search` - Search videos, users, and games
+  - `POST /api/tags` - Create custom tags
+
+#### 4. Frontend Pages & UI
+- **Core Pages:**
+  - `/` - Home page with video grid and filtering
+  - `/watch/[id]` - Video watch page with player, comments, likes
+  - `/upload` - Video upload page (protected)
+  - `/login` - Login page
+  - `/register` - Registration page
+  - `/profile/[id]` - User profile with stats, videos, edit/follow functionality
+  - `/clips` - Filtered page showing only clips
+  - `/full-videos` - Filtered page showing only full videos
+  - `/search` - Search results page with tabs (videos, users, games)
+- **Layout Components:**
+  - Root layout with Providers wrapper
+  - Navigation component with search bar
+  - Gaming-themed dark UI with blue/purple accents
+  - Responsive design with Tailwind CSS
+
+#### 5. Video Player (Video.js)
+- **Features:**
+  - Custom gaming-themed CSS styling
+  - Playback speed controls (0.5x to 2x)
+  - Responsive and fluid player
+  - Poster/thumbnail support
+  - Automatic view tracking after 30 seconds
+  - Player instance exposed for timestamp seeking
+- **Integration:**
+  - `VideoPlayer` component with cleanup on unmount
+  - `onPlayerReady` callback for parent components
+  - `onTimeUpdate` and `onEnded` event handlers
+- **Location:** `/components/VideoPlayer.tsx`
+
+#### 6. Comments & Likes System
+- **Comment Features:**
+  - Nested/threaded comments (replies)
+  - Timestamp comments that link to video moments
+  - Click timestamp to jump to that moment in video
+  - Delete functionality (auth required)
+  - Real-time updates after posting
+  - User avatars and display names
+  - Relative timestamps (e.g., "2 hours ago")
+- **Like Features:**
+  - Toggle like/unlike with heart icon
+  - Visual feedback (red when liked, gray when not)
+  - Real-time like count updates
+  - Optimistic UI updates
+- **Components:**
+  - `Comment.tsx` - Individual comment with timestamp badge
+  - `CommentSection.tsx` - Comment list and form
+  - `LikeButton.tsx` - Like toggle button
+
+#### 7. Search Functionality
+- **Search API:**
+  - Full-text search across videos (title, description, tags, game name)
+  - User search (username, displayName)
+  - Game search (name)
+  - Filtering by type (all, videos, users, games)
+  - Pagination support (limit, offset)
+- **Search UI:**
+  - Search bar in navigation header
+  - Search results page with tabs
+  - Video cards in grid layout
+  - User cards with avatar, stats, and bio
+  - Game cards with video count
+- **Location:** `/api/search/route.ts`, `/app/search/SearchPageClient.tsx`
+
+#### 8. User Profiles
+- **Profile Features:**
+  - User avatar (default gradient if no avatar)
+  - Display name and username
+  - Bio/description
+  - Stats: video count, follower count, following count
+  - Grid of user's uploaded videos
+  - Edit profile modal (for own profile)
+  - Follow/unfollow button (for other users)
+- **Edit Functionality:**
+  - Update display name, bio, avatar URL
+  - Real-time updates
+  - Protected (users can only edit their own profile)
+- **Components:**
+  - `ProfileClient.tsx` - Client-side interactivity
+  - `EditProfileModal.tsx` - Profile editing modal
+
+#### 9. Video Filtering
+- **Clips Page (`/clips`):**
+  - Shows only videos with videoType=CLIP
+  - Gaming-themed header
+  - Grid layout with VideoCard components
+- **Full Videos Page (`/full-videos`):**
+  - Shows only videos with videoType=FULL
+  - Same layout as clips page
+  - Links to related clips displayed on watch page
+- **Home Page Filtering:**
+  - Default view shows all videos
+  - Sorted by creation date (newest first)
+
+### 🚧 In Progress / Planned
+
+#### Video Clipping Tool
+- UI with video player and trim handles
+- Range slider for selecting start/end times
+- Preview functionality
+- FFmpeg integration for clip extraction
+- Save clips as new videos linked to parent
+
+#### Watch Together Mode
+- Socket.io integration
+- Synchronized playback
+- Real-time chat
+- Room creation and joining
+
+#### Additional Features (Future)
+- Video transcoding with FFmpeg
+- Multi-resolution support (HLS/DASH)
+- OCR stat detection
+- Reaction recordings
+- Auto-generated compilations
+- Discord integration
 
 ---
 

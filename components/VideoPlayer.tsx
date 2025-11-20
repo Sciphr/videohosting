@@ -11,9 +11,10 @@ interface VideoPlayerProps {
   videoId: string
   onTimeUpdate?: (currentTime: number) => void
   onEnded?: () => void
+  onPlayerReady?: (player: Player) => void
 }
 
-export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnded }: VideoPlayerProps) {
+export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnded, onPlayerReady }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<Player | null>(null)
 
@@ -41,8 +42,11 @@ export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnde
           src: src,
           type: 'video/mp4'
         }]
-      }, () => {
+      }, function() {
         console.log('Player is ready')
+        if (onPlayerReady) {
+          onPlayerReady(this)
+        }
       })
 
       // Time update event
