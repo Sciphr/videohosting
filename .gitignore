@@ -48,3 +48,6 @@ next-env.d.ts
 !/public/uploads/videos/.gitkeep
 /public/uploads/thumbnails/*
 !/public/uploads/thumbnails/.gitkeep
+
+# Temporary files from video processing
+/tmp

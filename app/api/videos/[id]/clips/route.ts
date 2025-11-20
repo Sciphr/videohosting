@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { downloadFromMinIO, uploadToMinIO, extractS3KeyFromUrl } from '@/lib/minio'
+import { extractClip, generateThumbnail } from '@/lib/ffmpeg'
+import fs from 'fs'
+import path from 'path'
+import { randomUUID } from 'crypto'
 
 export async function POST(
   request: NextRequest,
@@ -44,9 +49,9 @@ export async function POST(
     }
 
     const clipDuration = endTime - startTime
-    if (clipDuration < 5) {
+    if (clipDuration < 2) {
       return NextResponse.json(
-        { error: 'Clip must be at least 5 seconds long' },
+        { error: 'Clip must be at least 2 seconds long' },
         { status: 400 }
       )
     }
@@ -144,11 +149,111 @@ export async function POST(
       })
     }
 
-    // TODO: Trigger FFmpeg job to extract the clip
-    // For now, we'll just return the clip with PROCESSING status
-    // In production, you'd use a job queue (Bull, BullMQ, etc.) to process this asynchronously
+    // Process the clip with FFmpeg
+    // Note: For production, consider using a job queue for background processing
+    try {
+      const clipId = clip.id
+      const tempDir = path.join(process.cwd(), 'tmp', clipId)
 
-    return NextResponse.json(clip, { status: 201 })
+      // Create temp directory
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true })
+      }
+
+      const inputPath = path.join(tempDir, 'input.mp4')
+      const outputPath = path.join(tempDir, 'output.mp4')
+      const thumbnailPath = path.join(tempDir, 'thumbnail.jpg')
+
+      console.log(`Processing clip ${clipId}: downloading parent video...`)
+
+      // Extract S3 key from parent video URL and download
+      const s3Key = extractS3KeyFromUrl(parentVideo.fileUrl)
+      await downloadFromMinIO(s3Key, inputPath)
+
+      console.log(`Processing clip ${clipId}: extracting clip segment...`)
+
+      // Extract the clip using FFmpeg
+      await extractClip({
+        inputPath,
+        outputPath,
+        startTime,
+        endTime,
+      })
+
+      console.log(`Processing clip ${clipId}: generating thumbnail...`)
+
+      // Generate thumbnail from the middle of the clip
+      const thumbnailTimestamp = startTime + (clipDuration / 2)
+      await generateThumbnail(inputPath, thumbnailPath, thumbnailTimestamp)
+
+      console.log(`Processing clip ${clipId}: uploading to MinIO...`)
+
+      // Upload clip and thumbnail to MinIO
+      const clipS3Key = `clips/${clipId}.mp4`
+      const thumbnailS3Key = `thumbnails/${clipId}.jpg`
+
+      const clipUrl = await uploadToMinIO(outputPath, clipS3Key, 'video/mp4')
+      const thumbnailUrl = await uploadToMinIO(thumbnailPath, thumbnailS3Key, 'image/jpeg')
+
+      console.log(`Processing clip ${clipId}: updating database...`)
+
+      // Update the clip with the new URLs and status
+      await prisma.video.update({
+        where: { id: clipId },
+        data: {
+          fileUrl: clipUrl,
+          thumbnailUrl: thumbnailUrl,
+          status: 'READY',
+        }
+      })
+
+      console.log(`Processing clip ${clipId}: cleaning up temp files...`)
+
+      // Clean up temp files
+      fs.rmSync(tempDir, { recursive: true, force: true })
+
+      console.log(`Clip ${clipId} processed successfully!`)
+
+      // Fetch the updated clip to return
+      const updatedClip = await prisma.video.findUnique({
+        where: { id: clipId },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            }
+          },
+          game: true,
+          parentVideo: {
+            select: {
+              id: true,
+              title: true,
+              uploader: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                }
+              }
+            }
+          }
+        }
+      })
+
+      return NextResponse.json(updatedClip, { status: 201 })
+    } catch (processingError) {
+      console.error('FFmpeg processing error:', processingError)
+
+      // If processing fails, the clip still exists in DB with PROCESSING status
+      // User can retry or admin can reprocess later
+      console.error(`Clip ${clip.id} creation failed during processing. Entry exists with PROCESSING status.`)
+
+      // Return the clip with PROCESSING status
+      return NextResponse.json(clip, { status: 201 })
+    }
   } catch (error) {
     console.error('Create clip error:', error)
     return NextResponse.json(

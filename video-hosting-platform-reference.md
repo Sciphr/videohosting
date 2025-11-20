@@ -10,7 +10,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
 - NextAuth v5 (authentication)
 - MinIO (S3-compatible storage)
 - Tailwind CSS 4 (styling)
-- FFmpeg (video processing - to be integrated)
+- FFmpeg (video processing - integrated)
 - Socket.io (real-time features - to be integrated)
 
 ---
@@ -179,26 +179,46 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Default view shows all videos
   - Sorted by creation date (newest first)
 
-#### 10. Video Clipping Tool
+#### 10. Video Clipping Tool with FFmpeg Processing
 - **ClipCreator Component:**
   - Modal interface for creating clips from any video
   - Dual range sliders for precise start/end time selection
   - Real-time duration display with formatted timestamps
   - Preview functionality (plays selected range)
   - Title and description input
-  - Validation (5 seconds min, 2 minutes max)
+  - Validation (2 seconds min, 2 minutes max)
   - Custom gaming-themed slider styling
 - **Clip Creation API:**
-  - `POST /api/videos/[id]/clips` - Create new clip
+  - `POST /api/videos/[id]/clips` - Create and process clip
   - Validates time ranges and clip duration
   - Links clip to parent video via `parentVideoId`
   - Stores `clipStartTime` and `clipEndTime` in database
   - Creates notification for parent video owner
-  - Status set to PROCESSING (ready for FFmpeg integration)
+  - **Full FFmpeg integration with automatic processing**
+- **FFmpeg Processing Pipeline:**
+  - Downloads parent video from MinIO to temp directory
+  - Extracts clip segment using FFmpeg with stream copy (`-c copy`)
+  - Generates thumbnail from middle of clip
+  - Uploads clip and thumbnail to MinIO
+  - Updates database with new URLs and status=READY
+  - Cleans up temporary files automatically
+  - Fallback: If processing fails, clip entry remains with PROCESSING status
+- **MinIO Integration:**
+  - `lib/minio.ts` - Download/upload utilities
+  - Supports extracting S3 keys from URLs
+  - Automatic directory creation for uploads
+  - Stream-based downloads for efficiency
+- **FFmpeg Utilities:**
+  - `lib/ffmpeg.ts` - Video processing functions
+  - `extractClip()` - Fast clip extraction with stream copy
+  - `generateThumbnail()` - Thumbnail generation at timestamp
+  - `getVideoDuration()` - FFprobe duration detection
+  - `checkFFmpegAvailability()` - System check utility
 - **Collaborative Clipping:**
   - Any authenticated user can clip any video
   - Clips link back to original video and creator
   - "Clipped by" attribution stored in database
+  - Each clip gets unique ID and dedicated storage
 - **UI Integration:**
   - "Create Clip" button on all video watch pages
   - Parent video info banner displayed on clips
@@ -208,7 +228,11 @@ Building a video hosting platform for friends/family focused on gaming content. 
 - **Components:**
   - `ClipCreator.tsx` - Main clipping interface
   - Custom CSS for range sliders in `globals.css`
-- **Note:** Database structure ready for FFmpeg integration. Currently creates database entries; actual video extraction to be implemented with FFmpeg job queue.
+- **Performance Notes:**
+  - Stream copy (`-c copy`) makes extraction very fast (seconds, not minutes)
+  - No re-encoding needed - preserves original quality
+  - Suitable for Raspberry Pi deployment
+  - For scale: Consider job queue (Bull/BullMQ) for async processing
 
 ### 🚧 In Progress / Planned
 

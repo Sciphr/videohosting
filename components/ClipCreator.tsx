@@ -67,8 +67,8 @@ export default function ClipCreator({ videoId, player, onClose, onClipCreated }:
       return
     }
 
-    if (endTime - startTime < 5) {
-      setError('Clip must be at least 5 seconds long')
+    if (endTime - startTime < 2) {
+      setError('Clip must be at least 2 seconds long')
       return
     }
 
@@ -227,7 +227,7 @@ export default function ClipCreator({ videoId, player, onClose, onClipCreated }:
             {/* Info Box */}
             <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg p-4">
               <p className="text-blue-200 text-sm">
-                <strong>Note:</strong> Clips must be between 5 seconds and 2 minutes long. 
+                <strong>Note:</strong> Clips must be between 2 seconds and 2 minutes long.
                 The clip will be linked to this video as the original source.
               </p>
             </div>
