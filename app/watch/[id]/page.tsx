@@ -82,9 +82,9 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           {video.title}
         </h1>
 
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <Link 
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <Link
               href={`/profile/${video.uploader.id}`}
               className="text-blue-400 hover:text-blue-300 font-medium"
             >
@@ -95,11 +95,33 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
                 {video.game.name}
               </span>
             )}
+            <span className="text-gray-500 text-sm">•</span>
+            <span className="text-gray-400 text-sm">
+              {new Date(video.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              })}
+            </span>
           </div>
           <div className="text-gray-400 text-sm">
             {video.viewCount.toLocaleString()} views
           </div>
         </div>
+
+        {/* Tags */}
+        {video.tags && video.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {video.tags.map((videoTag: any) => (
+              <span
+                key={videoTag.tag.id}
+                className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full"
+              >
+                #{videoTag.tag.name}
+              </span>
+            ))}
+          </div>
+        )}
 
         {video.description && (
           <div className="border-t border-gray-800 pt-4">

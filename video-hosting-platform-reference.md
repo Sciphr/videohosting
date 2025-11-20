@@ -113,6 +113,16 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Navigation component with search bar and watch party link
   - Gaming-themed dark UI with blue/purple accents
   - Responsive design with Tailwind CSS
+- **Video Card Component:**
+  - Thumbnail with hover opacity effect
+  - Duration badge overlay on thumbnail
+  - Video title (2-line clamp)
+  - Uploader name/display name
+  - View count with locale formatting (e.g., "1,234 views")
+  - Upload time relative format (e.g., "2 days ago")
+  - Game badge display
+  - Hover ring effect for interactivity
+  - Responsive grid layout (1-4 columns based on screen size)
 
 #### 5. Video Player (Video.js)
 - **Features:**
@@ -126,7 +136,19 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `VideoPlayer` component with cleanup on unmount
   - `onPlayerReady` callback for parent components
   - `onTimeUpdate` and `onEnded` event handlers
-- **Location:** `/components/VideoPlayer.tsx`
+- **Video Page UI:**
+  - Video title and metadata section
+  - Uploader name with link to profile
+  - Game badge display
+  - Upload date (formatted as "Jan 1, 2024")
+  - Tags display with hashtag styling
+  - View count display
+  - Video description (expandable text)
+  - Parent video link for clips
+  - Action buttons: Like, Share (copy link), Watch Party, Create Clip
+  - Share button with "Copied!" feedback
+  - Related clips section for full videos
+- **Location:** `/components/VideoPlayer.tsx`, `/app/watch/[id]/page.tsx`
 
 #### 6. Comments & Likes System
 - **Comment Features:**
