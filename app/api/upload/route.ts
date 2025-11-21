@@ -8,8 +8,9 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
-// Configure route for 5-minute processing timeout
+// Configure route for 5-minute processing timeout and large file uploads
 export const maxDuration = 300
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {

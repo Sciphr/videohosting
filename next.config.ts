@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '2gb',
     },
+    // Increase middleware/API route body size limit for file uploads (default is 10MB)
+    middlewareClientMaxBodySize: '2gb',
   },
   // Image optimization configuration
   images: {
