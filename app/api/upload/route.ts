@@ -10,12 +10,12 @@ import { randomUUID } from 'crypto'
 
 // Configure route for 5-minute processing timeout and large file uploads
 export const maxDuration = 300
-export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  let formData
   try {
     const session = await getServerSession()
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -23,7 +23,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const formData = await request.formData()
+    try {
+      formData = await request.formData()
+    } catch (error) {
+      console.error('FormData parsing error:', error)
+      return NextResponse.json(
+        { error: 'Failed to parse request body' },
+        { status: 400 }
+      )
+    }
     const file = formData.get('file') as File
     const title = formData.get('title') as string
     const description = formData.get('description') as string
