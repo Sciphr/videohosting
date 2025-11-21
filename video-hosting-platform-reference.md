@@ -54,7 +54,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Protected API routes
   - Session-based authentication
 
-#### 3. API Routes (30 endpoints)
+#### 3. API Routes (31 endpoints)
 - **Video Routes:**
   - `GET /api/videos` - List videos with filtering (videoType, game, user)
   - `POST /api/videos` - Create new video
@@ -108,6 +108,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `/search` - Search results page with tabs (videos, users, games)
   - `/party/[roomCode]` - Watch party room with synchronized playback and chat
   - `/party/join` - Join watch party by entering room code
+  - `/party/active` - Browse all active watch parties with live updates
 - **Layout Components:**
   - Root layout with Providers wrapper
   - Navigation component with search bar and watch party link
@@ -354,6 +355,8 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Message timestamps
   - Chat history during session
   - Visual message bubbles with user info
+  - Auto-scroll to bottom when new messages arrive
+  - Smooth scrolling behavior
 - **Participant Management:**
   - Real-time participant list
   - Join/leave notifications
@@ -362,14 +365,23 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - "You" badge for current user
   - Avatar placeholders with gradient backgrounds
 - **Watch Party Pages:**
-  - `/party/[roomCode]` - Watch party room
-  - `/party/join` - Join party by entering code
+  - `/party/[roomCode]` - Watch party room with synchronized playback and chat
+  - `/party/join` - Join party by entering room code
+  - `/party/active` - Browse all active watch parties
   - "Watch Party" button on all video watch pages
-  - "Watch Parties" link in main navigation
+  - "Watch Parties" link in main navigation (links to active parties)
+- **Active Parties Discovery:**
+  - Real-time list of all active watch parties
+  - Shows video thumbnail, title, host, participant count
+  - Live badge indicator for active sessions
+  - One-click join from list
+  - Auto-refreshes every 10 seconds
+  - Empty state with helpful CTAs
 - **Watch Party API:**
   - `POST /api/watch-party` - Create new party
   - `GET /api/watch-party/[roomCode]` - Get party details
   - `POST /api/watch-party/[roomCode]/join` - Join party
+  - `GET /api/watch-party/active` - List all active parties with participant counts
 - **UI Features:**
   - Room code copy-to-clipboard
   - Connection status indicator (green/red)

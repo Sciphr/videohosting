@@ -67,7 +67,7 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/party/join"
+                href="/party/active"
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                   pathname?.startsWith('/party')
                     ? 'border-purple-500 text-white'
