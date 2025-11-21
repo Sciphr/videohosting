@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -8,7 +7,7 @@ export async function GET(
   { params }: { params: { roomCode: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -64,7 +63,7 @@ export async function GET(
       )
     }
 
-    if (watchParty.status === 'ENDED') {
+    if (!watchParty.isActive || watchParty.endedAt) {
       return NextResponse.json(
         { error: 'Watch party has ended' },
         { status: 410 }

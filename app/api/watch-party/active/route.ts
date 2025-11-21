@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     // Fetch all active watch parties with details
     const activeParties = await prisma.watchParty.findMany({
       where: {
-        status: 'ACTIVE'
+        isActive: true
       },
       include: {
         video: {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: {
-        startedAt: 'desc'
+        createdAt: 'desc'
       }
     })
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       video: party.video,
       host: party.host,
       participantCount: party.participants.length,
-      startedAt: party.startedAt,
+      createdAt: party.createdAt,
     }))
 
     return NextResponse.json({ parties: partiesWithCount })

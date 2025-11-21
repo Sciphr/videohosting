@@ -18,7 +18,7 @@ interface ActiveParty {
     displayName: string | null
   }
   participantCount: number
-  startedAt: Date
+  createdAt: Date
 }
 
 export default function ActiveWatchPartiesPage() {

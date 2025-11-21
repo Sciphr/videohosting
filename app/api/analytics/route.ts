@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -27,8 +26,7 @@ export async function GET(request: NextRequest) {
           select: {
             likes: true,
             comments: true,
-            clips: true,
-            views: true
+            clips: true
           }
         },
         game: {
@@ -77,13 +75,27 @@ export async function GET(request: NextRequest) {
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const recentViews = await prisma.videoView.groupBy({
-      by: ['viewedAt'],
+    // First get all video IDs for this user
+    const userVideoIds = await prisma.video.findMany({
       where: {
-        video: {
-          uploaderId: userId
+        uploaderId: userId,
+        deletedAt: null
+      },
+      select: {
+        id: true
+      }
+    })
+
+    const videoIds = userVideoIds.map(v => v.id)
+
+    // Then get views for those videos
+    const recentViews = await prisma.videoView.groupBy({
+      by: ['createdAt'],
+      where: {
+        videoId: {
+          in: videoIds
         },
-        viewedAt: {
+        createdAt: {
           gte: thirtyDaysAgo
         }
       },
@@ -91,14 +103,14 @@ export async function GET(request: NextRequest) {
         id: true
       },
       orderBy: {
-        viewedAt: 'asc'
+        createdAt: 'asc'
       }
     })
 
     // Group views by date for chart data
     const viewsByDate: { [key: string]: number } = {}
     recentViews.forEach(view => {
-      const date = new Date(view.viewedAt).toISOString().split('T')[0]
+      const date = new Date(view.createdAt).toISOString().split('T')[0]
       viewsByDate[date] = (viewsByDate[date] || 0) + view._count.id
     })
 

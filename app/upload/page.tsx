@@ -112,6 +112,14 @@ export default function UploadPage() {
     setUploadProgress(0)
 
     try {
+      // Check file size - Next.js has limits we need to respect
+      const maxSize = 500 * 1024 * 1024 // 500MB limit for Next.js
+      if (file.size > maxSize) {
+        setError(`File is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 500MB.`)
+        setIsUploading(false)
+        return
+      }
+
       const uploadFormData = new FormData()
       uploadFormData.append('file', file)
       uploadFormData.append('title', formData.title.trim())
@@ -135,14 +143,30 @@ export default function UploadPage() {
       })
 
       xhr.addEventListener('load', () => {
+        setIsUploading(false)
         if (xhr.status === 201) {
-          const data = JSON.parse(xhr.responseText)
-          // Redirect to the uploaded video
-          router.push(`/watch/${data.video.id}`)
+          try {
+            const data = JSON.parse(xhr.responseText)
+            // Redirect to the uploaded video
+            router.push(`/watch/${data.video.id}`)
+          } catch (e) {
+            setError('Upload successful but failed to parse response')
+            setUploadProgress(0)
+          }
         } else {
-          const data = JSON.parse(xhr.responseText)
-          setError(data.error || 'Upload failed')
-          setIsUploading(false)
+          try {
+            const data = JSON.parse(xhr.responseText)
+            setError(data.error || `Upload failed with status ${xhr.status}`)
+          } catch (e) {
+            // Response is not JSON (likely HTML error page)
+            if (xhr.status === 413) {
+              setError('File is too large. Maximum size is 500MB.')
+            } else if (xhr.status >= 500) {
+              setError('Server error. Please try again later.')
+            } else {
+              setError(`Upload failed with status ${xhr.status}`)
+            }
+          }
           setUploadProgress(0)
         }
       })

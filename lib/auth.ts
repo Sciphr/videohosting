@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { compare } from "bcryptjs"
 import prisma from "./prisma"
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authOptions = {
   providers: [
     Credentials({
       name: "credentials",
@@ -64,4 +64,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     }
   }
-})
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authOptions)
+
+// Helper for getting session in server routes (compatible with both v4 and v5)
+export async function getServerSession() {
+  return auth()
+}

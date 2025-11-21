@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToMinIO } from '@/lib/minio'
 import { generateThumbnail, getVideoDuration } from '@/lib/ffmpeg'
@@ -9,9 +8,12 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
+// Configure route for 5-minute processing timeout
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -45,11 +47,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size (max 2GB)
-    const maxSize = 2 * 1024 * 1024 * 1024 // 2GB
+    // Validate file size (max 500MB - Next.js limit)
+    const maxSize = 500 * 1024 * 1024 // 500MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 2GB' },
+        { error: 'File too large. Maximum size is 500MB' },
         { status: 400 }
       )
     }
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
           id: videoId,
           title: title.trim(),
           description: description?.trim() || null,
-          uploadedById: session.user.id,
+          uploaderId: session.user.id,
           videoType: videoType,
           fileUrl: videoUrl,
           thumbnailUrl: thumbnailUrl,
