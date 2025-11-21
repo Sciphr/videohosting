@@ -3,7 +3,7 @@ import { Readable } from 'stream'
 import fs from 'fs'
 import path from 'path'
 
-const s3Client = new S3Client({
+export const s3Client = new S3Client({
   endpoint: process.env.MINIO_ENDPOINT || 'http://localhost:9000',
   region: 'us-east-1',
   credentials: {

@@ -9,19 +9,18 @@ import { randomUUID } from 'crypto'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: videoId } = await params
     const session = await getServerSession()
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
-
-    const videoId = params.id
     const body = await request.json()
     const { title, description, startTime, endTime } = body
 
@@ -264,10 +263,10 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const videoId = params.id
+    const { id: videoId } = await params
 
     const clips = await prisma.video.findMany({
       where: {

@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import videojs from 'video.js'
+import 'video.js/dist/video-js.css'
 import Player from 'video.js/dist/types/player'
 
 interface ClipCreatorProps {
@@ -18,19 +20,103 @@ export default function ClipCreator({ videoId, player, onClose, onClipCreated }:
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [previewing, setPreviewing] = useState(false)
+  const [currentPreviewTime, setCurrentPreviewTime] = useState(0)
+  const previewPlayerRef = useRef<Player | null>(null)
 
   useEffect(() => {
     if (player) {
       const videoDuration = player.duration()
       setDuration(videoDuration)
       setEndTime(Math.min(30, videoDuration)) // Default to 30 seconds or video duration
-      
+
       // Set start time to current playback position
       const currentTime = player.currentTime()
       setStartTime(currentTime)
       setEndTime(Math.min(currentTime + 30, videoDuration))
     }
   }, [player])
+
+
+  useEffect(() => {
+    if (!previewing || !previewPlayerRef.current) return
+
+    const checkTime = setInterval(() => {
+      const previewPlayer = previewPlayerRef.current
+      if (!previewPlayer) return
+
+      const currentPlaybackTime = previewPlayer.currentTime()
+      setCurrentPreviewTime(currentPlaybackTime)
+
+      // Auto-pause at end time
+      if (currentPlaybackTime >= endTime) {
+        previewPlayer.pause()
+        setPreviewing(false)
+        clearInterval(checkTime)
+      }
+    }, 100)
+
+    return () => clearInterval(checkTime)
+  }, [previewing, endTime])
+
+  useEffect(() => {
+    // Initialize preview player when modal opens
+    if (!player) return
+
+    // If player already initialized, don't reinitialize
+    if (previewPlayerRef.current && !previewPlayerRef.current.isDisposed()) {
+      console.log('Preview player already initialized')
+      return
+    }
+
+    const previewVideoDiv = document.getElementById(`preview-player-${videoId}`)
+    if (!previewVideoDiv) return
+
+    // Clear any existing content
+    previewVideoDiv.innerHTML = ''
+
+    try {
+      const videoElement = document.createElement('video')
+      videoElement.className = 'video-js vjs-big-play-centered'
+      previewVideoDiv.appendChild(videoElement)
+
+      const previewPlayer = videojs(videoElement, {
+        autoplay: false,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        preload: 'metadata',
+        playbackRates: [1],
+        controlBar: {
+          children: ['playToggle', 'progressControl', 'volumePanel', 'fullscreenToggle']
+        },
+      }, function() {
+        console.log('Preview player ready')
+        this.src({
+          src: `/api/videos/${videoId}/stream`,
+          type: 'video/mp4',
+        })
+      })
+
+      previewPlayer.on('loadedmetadata', () => {
+        console.log('Preview player metadata loaded, duration:', previewPlayer.duration())
+      })
+
+      previewPlayer.on('canplay', () => {
+        console.log('Preview player can play')
+      })
+
+      previewPlayer.on('error', () => {
+        const err = previewPlayer.error()
+        console.error('Preview player error:', err?.code, err?.message)
+      })
+
+      previewPlayerRef.current = previewPlayer
+      console.log('Preview player initialized and ref set')
+    } catch (err) {
+      console.error('Error initializing preview player:', err)
+    }
+  }, [videoId, player])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -39,18 +125,32 @@ export default function ClipCreator({ videoId, player, onClose, onClipCreated }:
   }
 
   const handlePreview = () => {
-    if (player) {
-      player.currentTime(startTime)
-      player.play()
-      
-      // Auto-pause at end time
-      const checkTime = () => {
-        if (player.currentTime() >= endTime) {
-          player.pause()
-          player.off('timeupdate', checkTime)
-        }
+    console.log('Preview button clicked')
+    console.log('Player ref:', previewPlayerRef.current)
+    console.log('Player disposed:', previewPlayerRef.current?.isDisposed())
+
+    if (previewPlayerRef.current && !previewPlayerRef.current.isDisposed()) {
+      try {
+        setPreviewing(true)
+        setCurrentPreviewTime(startTime)
+        console.log('Setting current time to:', startTime)
+        previewPlayerRef.current.currentTime(startTime)
+        console.log('Calling play')
+        previewPlayerRef.current.play().catch((err: any) => {
+          console.error('Play error:', err)
+        })
+      } catch (err) {
+        console.error('Error in preview:', err)
       }
-      player.on('timeupdate', checkTime)
+    } else {
+      console.log('Preview player not ready')
+    }
+  }
+
+  const handleStopPreview = () => {
+    if (previewPlayerRef.current) {
+      previewPlayerRef.current.pause()
+      setPreviewing(false)
     }
   }
 
@@ -133,55 +233,205 @@ export default function ClipCreator({ videoId, player, onClose, onClipCreated }:
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Time Range Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-4">
                 Select Clip Range
               </label>
-              
-              <div className="space-y-4">
-                {/* Start Time Slider */}
-                <div>
-                  <div className="flex justify-between text-sm text-gray-400 mb-1">
-                    <span>Start Time</span>
-                    <span>{formatTime(startTime)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={duration}
-                    step="0.1"
-                    value={startTime}
-                    onChange={(e) => setStartTime(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
-                  />
+
+              {/* Preview Player */}
+              <div className="mb-6 bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
+                <div id={`preview-player-${videoId}`} className="w-full h-full" data-vjs-player>
+                  {/* Video.js player will be initialized here */}
+                </div>
+              </div>
+
+              {/* Time Range Visualization */}
+              <div className="mb-6">
+                {/* Timeline Bar */}
+                <div className="relative mb-4 h-2 bg-gray-600 rounded-full overflow-hidden">
+                  {/* Total duration track */}
+                  <div className="absolute inset-0 bg-gray-700"></div>
+
+                  {/* Selected clip range highlight */}
+                  <div
+                    className="absolute h-full bg-blue-500 transition-all"
+                    style={{
+                      left: `${(startTime / duration) * 100}%`,
+                      right: `${((duration - endTime) / duration) * 100}%`,
+                    }}
+                  ></div>
+
+                  {/* Start marker */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-400 rounded-full border-2 border-blue-300 shadow-lg"
+                    style={{
+                      left: `calc(${(startTime / duration) * 100}% - 6px)`,
+                    }}
+                  ></div>
+
+                  {/* End marker */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-400 rounded-full border-2 border-blue-300 shadow-lg"
+                    style={{
+                      left: `calc(${(endTime / duration) * 100}% - 6px)`,
+                    }}
+                  ></div>
                 </div>
 
-                {/* End Time Slider */}
-                <div>
-                  <div className="flex justify-between text-sm text-gray-400 mb-1">
-                    <span>End Time</span>
-                    <span>{formatTime(endTime)}</span>
+                {/* Time labels */}
+                <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400">Start Time</p>
+                    <p className="text-blue-400 font-semibold">{formatTime(startTime)}</p>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={duration}
-                    step="0.1"
-                    value={endTime}
-                    onChange={(e) => setEndTime(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
-                  />
+                  <div>
+                    <p className="text-xs text-gray-400">Duration</p>
+                    <p className="text-white font-semibold">{formatTime(clipDuration)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">End Time</p>
+                    <p className="text-blue-400 font-semibold">{formatTime(endTime)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sliders with Timeline Visualization */}
+              <div className="space-y-4 bg-gray-700 rounded-lg p-4">
+                {/* Interactive Timeline Slider */}
+                <div>
+                  <div className="flex justify-between text-sm text-gray-300 mb-3">
+                    <label className="font-medium">Select Clip Range</label>
+                  </div>
+
+                  {/* Visual timeline with overlaid range sliders */}
+                  <div
+                    className="relative"
+                    onMouseDown={(e) => {
+                      const container = e.currentTarget
+                      const rect = container.getBoundingClientRect()
+                      const clickX = e.clientX - rect.left
+                      const clickPercent = clickX / rect.width
+                      const midpoint = (startTime + endTime) / (2 * duration)
+
+                      // If clicked on left half, activate start slider; if on right half, activate end slider
+                      if (clickPercent < midpoint) {
+                        const startSlider = document.getElementById('start-slider') as HTMLInputElement
+                        if (startSlider) startSlider.focus()
+                      } else {
+                        const endSlider = document.getElementById('end-slider') as HTMLInputElement
+                        if (endSlider) endSlider.focus()
+                      }
+                    }}
+                  >
+                    {/* Background timeline bar */}
+                    <div className="relative h-8 bg-gray-600 rounded-lg overflow-visible cursor-pointer">
+                      {/* Total duration track */}
+                      <div className="absolute inset-y-0 left-0 right-0 h-2 top-1/2 -translate-y-1/2 bg-gray-700 rounded-full"></div>
+
+                      {/* Selected clip range highlight */}
+                      <div
+                        className="absolute h-2 top-1/2 -translate-y-1/2 bg-blue-500 rounded-full transition-all pointer-events-none"
+                        style={{
+                          left: `${(startTime / duration) * 100}%`,
+                          right: `${((duration - endTime) / duration) * 100}%`,
+                        }}
+                      ></div>
+
+                      {/* Start time slider */}
+                      <input
+                        id="start-slider"
+                        type="range"
+                        min="0"
+                        max={duration}
+                        step="0.1"
+                        value={startTime}
+                        onInput={(e) => {
+                          const newStart = parseFloat(e.currentTarget.value)
+                          if (newStart < endTime) {
+                            setStartTime(newStart)
+                          }
+                        }}
+                        className="absolute top-0 h-full opacity-0 cursor-pointer"
+                        style={{
+                          pointerEvents: 'auto',
+                          zIndex: 5,
+                          left: 0,
+                          width: '100%',
+                        }}
+                      />
+
+                      {/* End time slider */}
+                      <input
+                        id="end-slider"
+                        type="range"
+                        min="0"
+                        max={duration}
+                        step="0.1"
+                        value={endTime}
+                        onInput={(e) => {
+                          const newEnd = parseFloat(e.currentTarget.value)
+                          if (newEnd > startTime) {
+                            setEndTime(newEnd)
+                          }
+                        }}
+                        className="absolute top-0 h-full opacity-0 cursor-pointer"
+                        style={{
+                          pointerEvents: 'auto',
+                          zIndex: 4,
+                          left: 0,
+                          width: '100%',
+                        }}
+                      />
+
+                      {/* Start marker */}
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-blue-400 rounded-full border-2 border-blue-300 shadow-lg pointer-events-none"
+                        style={{
+                          left: `calc(${(startTime / duration) * 100}% - 10px)`,
+                        }}
+                      >
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-gray-900 text-blue-300 px-2 py-1 rounded border border-blue-500/50 pointer-events-none">
+                          {formatTime(startTime)}
+                        </div>
+                      </div>
+
+                      {/* End marker */}
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-blue-400 rounded-full border-2 border-blue-300 shadow-lg pointer-events-none"
+                        style={{
+                          left: `calc(${(endTime / duration) * 100}% - 10px)`,
+                        }}
+                      >
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-gray-900 text-blue-300 px-2 py-1 rounded border border-blue-500/50 pointer-events-none">
+                          {formatTime(endTime)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Time scale below timeline */}
+                    <div className="flex justify-between text-xs text-gray-400 mt-2 px-1">
+                      <span>0:00</span>
+                      <span>{formatTime(duration / 2)}</span>
+                      <span>{formatTime(duration)}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">
-                    Clip Duration: <span className="text-white font-medium">{formatTime(clipDuration)}</span>
-                  </span>
+                {/* Duration and Preview */}
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-700">
+                  <div>
+                    <span className="text-gray-400">Duration: </span>
+                    <span className="text-white font-medium">{formatTime(clipDuration)}</span>
+                  </div>
                   <button
                     type="button"
-                    onClick={handlePreview}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium"
+                    onClick={previewing ? handleStopPreview : handlePreview}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      previewing
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-gray-800 hover:bg-gray-700 text-white'
+                    }`}
                   >
-                    Preview
+                    {previewing ? '⏸ Stop Preview' : '▶ Preview'}
                   </button>
                 </div>
               </div>

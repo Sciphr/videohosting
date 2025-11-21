@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
+    const { roomCode } = await params
     const session = await getServerSession()
 
     if (!session?.user?.id) {
@@ -15,8 +16,6 @@ export async function POST(
         { status: 401 }
       )
     }
-
-    const { roomCode } = params
 
     const watchParty = await prisma.watchParty.findUnique({
       where: { roomCode: roomCode.toUpperCase() }

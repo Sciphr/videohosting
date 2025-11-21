@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client'
 import VideoPlayer from '@/components/VideoPlayer'
 import Player from 'video.js/dist/types/player'
 import type { ServerToClientEvents, ClientToServerEvents, Participant, ChatMessage } from '@/lib/socket'
+import { useGlobalToast } from '@/app/context/ToastContext'
 
 interface WatchPartyClientProps {
   watchParty: any
@@ -13,11 +14,13 @@ interface WatchPartyClientProps {
     id: string
     username: string
     displayName: string
-  }
+  } | null
+  isAuthenticated: boolean
 }
 
-export default function WatchPartyClient({ watchParty, currentUser }: WatchPartyClientProps) {
+export default function WatchPartyClient({ watchParty, currentUser, isAuthenticated }: WatchPartyClientProps) {
   const router = useRouter()
+  const { showToast } = useGlobalToast()
   const playerRef = useRef<Player | null>(null)
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
@@ -26,9 +29,25 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isHost, setIsHost] = useState(false)
+  const [guestName, setGuestName] = useState('')
+  const [guestId, setGuestId] = useState<string | null>(null)
   const ignoreNextEvent = useRef(false)
 
   const roomCode = watchParty.roomCode
+
+  // Initialize guest ID from localStorage on mount
+  useEffect(() => {
+    if (!currentUser) {
+      const storedGuestId = localStorage.getItem(`guest-id-${roomCode}`)
+      if (storedGuestId) {
+        setGuestId(storedGuestId)
+      } else {
+        const newGuestId = `guest-${Date.now()}`
+        setGuestId(newGuestId)
+        localStorage.setItem(`guest-id-${roomCode}`, newGuestId)
+      }
+    }
+  }, [roomCode, currentUser])
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -36,7 +55,7 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
   }, [messages])
 
   useEffect(() => {
-    setIsHost(watchParty.hostId === currentUser.id)
+    setIsHost(currentUser ? watchParty.hostId === currentUser.id : false)
 
     // Initialize Socket.io connection
     const initSocket = async () => {
@@ -54,12 +73,22 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
         setIsConnected(true)
 
         // Join the watch party room
-        socket.emit('party:join', {
-          roomCode,
-          userId: currentUser.id,
-          username: currentUser.username,
-          displayName: currentUser.displayName,
-        })
+        if (currentUser) {
+          socket.emit('party:join', {
+            roomCode,
+            userId: currentUser.id,
+            username: currentUser.username,
+            displayName: currentUser.displayName,
+          })
+        } else if (guestId) {
+          // Guest join - use persistent guest ID
+          socket.emit('party:join', {
+            roomCode,
+            userId: guestId,
+            username: guestName || 'Guest',
+            displayName: guestName || 'Guest',
+          })
+        }
       })
 
       socket.on('disconnect', () => {
@@ -109,6 +138,13 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
         setMessages((prev) => [...prev, message])
       })
 
+      socket.on('party:kicked', (data) => {
+        showToast('You have been removed from the watch party', 'warning', 5000)
+        setTimeout(() => {
+          router.push('/')
+        }, 100)
+      })
+
       socket.on('party:ended', () => {
         alert('Watch party has ended')
         router.push('/')
@@ -122,12 +158,12 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
       if (socketRef.current) {
         socketRef.current.emit('party:leave', {
           roomCode,
-          userId: currentUser.id,
+          userId: currentUser?.id || guestId || `guest-${Date.now()}`,
         })
         socketRef.current.disconnect()
       }
     }
-  }, [roomCode, currentUser, watchParty.hostId, router])
+  }, [roomCode, currentUser, watchParty.hostId, router, guestName, guestId])
 
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
@@ -169,12 +205,18 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
 
     if (!newMessage.trim() || !socketRef.current) return
 
+    // Require guests to have set a name before sending messages
+    if (!currentUser && !guestName.trim()) {
+      alert('Please enter your name before sending messages')
+      return
+    }
+
     socketRef.current.emit('party:chat-message', {
       roomCode,
       message: newMessage.trim(),
-      userId: currentUser.id,
-      username: currentUser.username,
-      displayName: currentUser.displayName,
+      userId: currentUser?.id || guestId || 'guest',
+      username: currentUser?.username || guestName || 'Guest',
+      displayName: currentUser?.displayName || guestName || 'Guest',
     })
 
     setNewMessage('')
@@ -183,6 +225,59 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
   const copyRoomCode = () => {
     navigator.clipboard.writeText(roomCode)
     alert('Room code copied to clipboard!')
+  }
+
+  const handleCloseParty = async () => {
+    if (!confirm('Are you sure you want to close this watch party? All participants will be removed.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/watch-party/${roomCode}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: false }),
+      })
+
+      if (response.ok) {
+        alert('Watch party closed')
+        router.push('/')
+      } else {
+        const error = await response.json()
+        alert(`Error: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error closing watch party:', error)
+      alert('Failed to close watch party')
+    }
+  }
+
+  const handleKickParticipant = async (participantUserId: string) => {
+    try {
+      console.log('handleKickParticipant called with:', participantUserId)
+      // Emit socket event to remove participant (works for both authenticated users and guests)
+      if (socketRef.current) {
+        console.log('Emitting party:kick-participant to server')
+        socketRef.current.emit('party:kick-participant', {
+          roomCode,
+          userId: participantUserId,
+        })
+      } else {
+        console.log('Socket not connected')
+      }
+
+      // For authenticated users, also update the database
+      if (!participantUserId.startsWith('guest-')) {
+        console.log('Calling kick API for authenticated user')
+        await fetch(`/api/watch-party/${roomCode}/kick`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: participantUserId }),
+        })
+      }
+    } catch (error) {
+      console.error('Error kicking participant:', error)
+    }
   }
 
   return (
@@ -198,26 +293,36 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
               Hosted by: {watchParty.host.displayName || watchParty.host.username}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-400 mb-2">Room Code:</p>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-mono font-bold text-blue-400">{roomCode}</span>
-              <button
-                onClick={copyRoomCode}
-                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                title="Copy room code"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
+          <div className="text-right space-y-3">
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Room Code:</p>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-mono font-bold text-blue-400">{roomCode}</span>
+                <button
+                  onClick={copyRoomCode}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  title="Copy room code"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div className="mt-2">
+            <div>
               <span className={`inline-flex items-center gap-1 text-sm ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
+            {isHost && (
+              <button
+                onClick={handleCloseParty}
+                className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Close Party
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -228,7 +333,7 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
           {/* Video Player */}
           <div className="bg-gray-900 rounded-lg overflow-hidden">
             <VideoPlayer
-              src={watchParty.video.fileUrl}
+              src={`/api/videos/${watchParty.video.id}/stream`}
               poster={watchParty.video.thumbnailUrl || undefined}
               videoId={watchParty.video.id}
               onPlayerReady={handlePlayerReady}
@@ -262,22 +367,36 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
             </div>
 
             {/* Message Input */}
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                disabled={!isConnected}
-              />
-              <button
-                type="submit"
-                disabled={!isConnected || !newMessage.trim()}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-              >
-                Send
-              </button>
+            <form onSubmit={handleSendMessage} className="space-y-2">
+              {/* Guest name input */}
+              {!isAuthenticated && (
+                <input
+                  type="text"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Enter your name..."
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+              )}
+
+              {/* Message input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  disabled={!isConnected}
+                />
+                <button
+                  type="submit"
+                  disabled={!isConnected || !newMessage.trim()}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  Send
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -291,23 +410,36 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
             {participants.map((participant) => (
               <div
                 key={participant.userId}
-                className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg"
+                className="flex items-center justify-between gap-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                  {participant.displayName[0].toUpperCase()}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                    {participant.displayName[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-white truncate">
+                      {participant.displayName}
+                      {participant.userId === watchParty.hostId && (
+                        <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded">Host</span>
+                      )}
+                      {currentUser && participant.userId === currentUser.id && (
+                        <span className="ml-2 text-xs bg-green-600 px-2 py-0.5 rounded">You</span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-400 truncate">@{participant.username}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white truncate">
-                    {participant.displayName}
-                    {participant.userId === watchParty.hostId && (
-                      <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded">Host</span>
-                    )}
-                    {participant.userId === currentUser.id && (
-                      <span className="ml-2 text-xs bg-green-600 px-2 py-0.5 rounded">You</span>
-                    )}
-                  </p>
-                  <p className="text-sm text-gray-400 truncate">@{participant.username}</p>
-                </div>
+                {isHost && participant.userId !== watchParty.hostId && participant.userId !== currentUser?.id && (
+                  <button
+                    onClick={() => handleKickParticipant(participant.userId)}
+                    className="p-1.5 hover:bg-red-600/80 text-red-400 hover:text-white rounded transition-colors flex-shrink-0"
+                    title="Remove participant"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))}
           </div>

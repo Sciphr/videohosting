@@ -35,7 +35,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           <WatchPageClient
             video={{
               id: video.id,
-              fileUrl: video.fileUrl,
+              fileUrl: `/api/videos/${video.id}/stream`,
               thumbnailUrl: video.thumbnailUrl,
               likeCount: video.likeCount || 0,
               commentCount: video.commentCount || 0,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import Player from 'video.js/dist/types/player'
@@ -17,6 +18,7 @@ interface VideoPlayerProps {
 export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnded, onPlayerReady }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<Player | null>(null)
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     // Make sure Video.js player is only initialized once
@@ -36,7 +38,18 @@ export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnde
         controlBar: {
           volumePanel: {
             inline: false,
+            vertical: true,
           },
+          children: [
+            'playToggle',
+            'volumePanel',
+            'currentTimeDisplay',
+            'timeDivider',
+            'durationDisplay',
+            'progressControl',
+            'playbackRateMenuButton',
+            'fullscreenToggle'
+          ]
         },
         sources: [{
           src: src,
@@ -44,6 +57,16 @@ export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnde
         }]
       }, function() {
         console.log('Player is ready')
+
+        // Handle timestamp from URL query parameter
+        const timeParam = searchParams.get('t')
+        if (timeParam) {
+          const timestamp = parseFloat(timeParam)
+          if (!isNaN(timestamp) && timestamp >= 0) {
+            player.currentTime(timestamp)
+          }
+        }
+
         if (onPlayerReady) {
           onPlayerReady(this)
         }
@@ -85,7 +108,7 @@ export default function VideoPlayer({ src, poster, videoId, onTimeUpdate, onEnde
         playerRef.current = null
       }
     }
-  }, [src, poster, videoId, onTimeUpdate, onEnded])
+  }, [src, poster, videoId, onTimeUpdate, onEnded, searchParams])
 
   return (
     <div data-vjs-player>

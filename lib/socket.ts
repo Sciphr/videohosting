@@ -19,6 +19,7 @@ export interface ServerToClientEvents {
   'party:pause': (data: { timestamp: number }) => void
   'party:seek': (data: { timestamp: number }) => void
   'party:chat-message': (data: ChatMessage) => void
+  'party:kicked': (data: {}) => void
   'party:ended': () => void
 }
 
@@ -29,6 +30,7 @@ export interface ClientToServerEvents {
   'party:pause': (data: { roomCode: string; timestamp: number }) => void
   'party:seek': (data: { roomCode: string; timestamp: number }) => void
   'party:chat-message': (data: { roomCode: string; message: string; userId: string; username: string; displayName: string }) => void
+  'party:kick-participant': (data: { roomCode: string; userId: string }) => void
 }
 
 export interface Participant {

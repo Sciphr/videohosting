@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
           uploaderId: session.user.id,
           videoType: videoType,
           fileUrl: videoUrl,
+          fileKey: videoS3Key,
           thumbnailUrl: thumbnailUrl,
           duration: duration,
           gameId: gameId || null,

@@ -10,95 +10,178 @@
 
 /* Big play button */
 .video-js .vjs-big-play-button {
-  background-color: rgba(59, 130, 246, 0.9);
+  background-color: rgba(59, 130, 246, 0.85);
   border: none;
   border-radius: 50%;
   width: 80px;
   height: 80px;
-  line-height: 80px;
   top: 50%;
   left: 50%;
-  margin-top: -40px;
-  margin-left: -40px;
+  transform: translate(-50%, -50%);
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .video-js .vjs-big-play-button:hover {
   background-color: rgba(59, 130, 246, 1);
-  transform: scale(1.1);
+  transform: translate(-50%, -50%) scale(1.1);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
 }
 
 .video-js .vjs-big-play-button .vjs-icon-placeholder:before {
   font-size: 36px;
-  line-height: 80px;
+  line-height: 1;
+  margin-left: 4px;
+  margin-top: 2px;
 }
 
 /* Control bar */
 .video-js .vjs-control-bar {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-  height: 4em;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.4) 60%, transparent);
+  height: 2.8em;
+  padding: 0;
+  bottom: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 /* Progress control */
 .video-js .vjs-progress-control {
   position: absolute;
-  top: -0.5em;
+  top: -6px;
   left: 0;
   right: 0;
   width: 100%;
-  height: 0.5em;
+  height: 8px;
+  cursor: pointer;
 }
 
 .video-js .vjs-progress-holder {
-  background-color: rgba(115, 133, 159, 0.5);
-  height: 0.5em;
+  background-color: rgba(100, 116, 139, 0.4);
+  height: 4px;
+  margin-top: 2px;
+  border-radius: 2px;
+  transition: height 0.2s ease;
 }
 
 .video-js .vjs-play-progress {
   background-color: #3b82f6;
+  height: 4px;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
 .video-js .vjs-load-progress {
-  background-color: rgba(115, 133, 159, 0.3);
+  background-color: rgba(100, 116, 139, 0.3);
+  height: 4px;
+}
+
+.video-js .vjs-time-tooltip {
+  background-color: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
 /* Hover state for progress */
 .video-js .vjs-progress-control:hover .vjs-progress-holder {
-  font-size: 1.5em;
+  height: 6px;
+  margin-top: 1px;
+}
+
+/* Control buttons base styles */
+.video-js .vjs-control {
+  width: 2.4em;
+  height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e5e7eb;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0.25em;
+}
+
+.video-js .vjs-control:hover {
+  color: #3b82f6;
 }
 
 /* Play/Pause button */
 .video-js .vjs-play-control {
-  color: #fff;
+  color: #e5e7eb !important;
+  margin-right: 2em !important;
+  padding-right: 2em !important;
 }
 
 .video-js .vjs-play-control:hover {
   color: #3b82f6;
+  transform: scale(1.05);
 }
 
-/* Volume */
+/* Volume panel */
 .video-js .vjs-volume-panel {
-  color: #fff;
+  color: #e5e7eb !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-left: 2em !important;
+}
+
+.video-js .vjs-volume-control {
+  display: flex;
+  align-items: center;
 }
 
 .video-js .vjs-volume-level {
   background-color: #3b82f6;
 }
 
+.video-js .vjs-mute-control:hover {
+  color: #3b82f6;
+}
+
 /* Time display */
 .video-js .vjs-time-control {
-  color: #fff;
-  font-size: 14px;
-  line-height: 4em;
+  color: #d1d5db;
+  font-size: 13px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+/* Current time and duration */
+.video-js .vjs-current-time,
+.video-js .vjs-duration {
+  display: block;
 }
 
 /* Fullscreen button */
 .video-js .vjs-fullscreen-control {
-  color: #fff;
+  color: #e5e7eb;
 }
 
 .video-js .vjs-fullscreen-control:hover {
   color: #3b82f6;
+}
+
+/* Settings/Gear button */
+.video-js .vjs-settings-button:hover,
+.video-js .vjs-captions-button:hover {
+  color: #3b82f6;
+}
+
+/* Hide unnecessary buttons */
+.video-js .vjs-airplay-button,
+.video-js .vjs-picture-in-picture-control {
+  display: none !important;
 }
 
 /* Playback rate menu */
@@ -142,13 +225,15 @@
   .video-js .vjs-big-play-button {
     width: 60px;
     height: 60px;
-    line-height: 60px;
-    margin-top: -30px;
-    margin-left: -30px;
   }
-  
+
   .video-js .vjs-big-play-button .vjs-icon-placeholder:before {
     font-size: 28px;
-    line-height: 60px;
+  }
+
+  .video-js .vjs-control {
+    width: 2.3em;
+    height: 2.3em;
+    margin: 0 0.2em;
   }
 }

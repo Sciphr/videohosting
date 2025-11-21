@@ -37,15 +37,20 @@ export default function SocketHandler(
 
   // In-memory storage for room participants
   const participants = new Map<string, Map<string, Participant>>()
+  // Track userId to socketId mapping
+  const userToSocket = new Map<string, string>()
 
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id)
+    console.log('Registering event handlers for socket:', socket.id)
 
     // Join a watch party room
     socket.on('party:join', ({ roomCode, userId, username, displayName }) => {
       console.log(`User ${username} joining room ${roomCode}`)
 
       socket.join(roomCode)
+      // Track this userId to socketId mapping
+      userToSocket.set(userId, socket.id)
 
       // Add participant to room
       if (!participants.has(roomCode)) {
@@ -77,6 +82,7 @@ export default function SocketHandler(
 
       if (roomParticipants) {
         roomParticipants.delete(userId)
+        userToSocket.delete(userId)
 
         // If room is empty, delete it
         if (roomParticipants.size === 0) {
@@ -129,6 +135,37 @@ export default function SocketHandler(
 
       // Broadcast to all users in room (including sender)
       io.to(roomCode).emit('party:chat-message', chatMessage)
+    })
+
+    // Kick participant from room
+    socket.on('party:kick-participant', ({ roomCode, userId }) => {
+      console.log(`Kicking user ${userId} from room ${roomCode}`)
+      console.log(`Current participants in room:`, Array.from(participants.get(roomCode)?.keys() || []))
+      console.log(`Kicked socket ID:`, userToSocket.get(userId))
+
+      const roomParticipants = participants.get(roomCode)
+      const participant = roomParticipants?.get(userId)
+
+      console.log(`Room participants found: ${!!roomParticipants}, Participant found: ${!!participant}`)
+
+      if (roomParticipants && participant) {
+        roomParticipants.delete(userId)
+
+        // Update participant list for remaining users
+        io.to(roomCode).emit('party:participant-list', {
+          participants: Array.from(roomParticipants.values())
+        })
+
+        // Send kick notification to the kicked participant
+        const kickedSocketId = userToSocket.get(userId)
+        console.log(`Emitting party:kicked to socket ${kickedSocketId}`)
+        if (kickedSocketId) {
+          io.to(kickedSocketId).emit('party:kicked', {})
+          userToSocket.delete(userId)
+        }
+      } else {
+        console.log(`Failed to kick - room or participant not found`)
+      }
     })
 
     // Handle disconnect
