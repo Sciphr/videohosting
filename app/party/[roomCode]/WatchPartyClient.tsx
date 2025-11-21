@@ -20,6 +20,7 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
   const router = useRouter()
   const playerRef = useRef<Player | null>(null)
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null)
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -28,6 +29,11 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
   const ignoreNextEvent = useRef(false)
 
   const roomCode = watchParty.roomCode
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   useEffect(() => {
     setIsHost(watchParty.hostId === currentUser.id)
@@ -238,17 +244,20 @@ export default function WatchPartyClient({ watchParty, currentUser }: WatchParty
               {messages.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No messages yet. Start the conversation!</p>
               ) : (
-                messages.map((msg) => (
-                  <div key={msg.id} className="bg-gray-700 rounded-lg p-3">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="font-semibold text-blue-400">{msg.displayName || msg.username}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </span>
+                <>
+                  {messages.map((msg) => (
+                    <div key={msg.id} className="bg-gray-700 rounded-lg p-3">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="font-semibold text-blue-400">{msg.displayName || msg.username}</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-white">{msg.message}</p>
                     </div>
-                    <p className="text-white">{msg.message}</p>
-                  </div>
-                ))
+                  ))}
+                  <div ref={chatEndRef} />
+                </>
               )}
             </div>
 

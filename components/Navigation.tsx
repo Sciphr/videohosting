@@ -22,12 +22,12 @@ export default function Navigation() {
   }
 
   return (
-    <nav className="bg-gray-900 border-b border-gray-800">
+    <nav className="bg-gray-900 border-b-2 border-purple-500/30 shadow-lg shadow-purple-500/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">
-            <Link href="/" className="flex items-center">
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+            <Link href="/" className="flex items-center group">
+              <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(0,255,255,0.5)] group-hover:drop-shadow-[0_0_25px_rgba(0,255,255,0.8)] transition-all duration-300">
                 GameClips
               </span>
             </Link>
@@ -67,7 +67,7 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/party/join"
+                href="/party/active"
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                   pathname?.startsWith('/party')
                     ? 'border-purple-500 text-white'
@@ -78,16 +78,28 @@ export default function Navigation() {
               </Link>
 
               {session && (
-                <Link
-                  href="/upload"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    isActive('/upload')
-                      ? 'border-blue-500 text-white'
-                      : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
-                  }`}
-                >
-                  Upload
-                </Link>
+                <>
+                  <Link
+                    href="/upload"
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      isActive('/upload')
+                        ? 'border-blue-500 text-white'
+                        : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+                    }`}
+                  >
+                    Upload
+                  </Link>
+                  <Link
+                    href="/analytics"
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      isActive('/analytics')
+                        ? 'border-blue-500 text-white'
+                        : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+                    }`}
+                  >
+                    Analytics
+                  </Link>
+                </>
               )}
             </div>
           </div>
@@ -140,7 +152,7 @@ export default function Navigation() {
                 </Link>
                 <Link
                   href="/register"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg shadow-blue-500/50 hover:shadow-blue-500/80 transition-all duration-300"
                 >
                   Sign Up
                 </Link>
