@@ -6,6 +6,7 @@ import VideoPlayer from '@/components/VideoPlayer'
 import LikeButton from '@/components/LikeButton'
 import CommentSection from '@/components/CommentSection'
 import ClipCreator from '@/components/ClipCreator'
+import EditVideoModal from '@/components/EditVideoModal'
 import Player from 'video.js/dist/types/player'
 
 interface WatchPageClientProps {
@@ -16,15 +17,20 @@ interface WatchPageClientProps {
     likeCount: number
     commentCount: number
   }
+  fullVideo: any
   isAuthenticated: boolean
+  currentUserId?: string
 }
 
-export default function WatchPageClient({ video, isAuthenticated }: WatchPageClientProps) {
+export default function WatchPageClient({ video, fullVideo, isAuthenticated, currentUserId }: WatchPageClientProps) {
   const router = useRouter()
   const playerRef = useRef<Player | null>(null)
   const [showClipCreator, setShowClipCreator] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [isCreatingParty, setIsCreatingParty] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+
+  const isVideoOwner = currentUserId && fullVideo.uploaderId === currentUserId
 
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
@@ -69,6 +75,10 @@ export default function WatchPageClient({ video, isAuthenticated }: WatchPageCli
     }
   }
 
+  const handleVideoSaved = () => {
+    router.refresh()
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-black rounded-lg overflow-hidden">
@@ -108,6 +118,18 @@ export default function WatchPageClient({ video, isAuthenticated }: WatchPageCli
               </>
             )}
           </button>
+
+          {isVideoOwner && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+          )}
 
           {isAuthenticated && (
             <>
@@ -149,6 +171,15 @@ export default function WatchPageClient({ video, isAuthenticated }: WatchPageCli
           player={playerRef.current}
           onClose={() => setShowClipCreator(false)}
           onClipCreated={() => setShowClipCreator(false)}
+        />
+      )}
+
+      {/* Edit Video Modal */}
+      {showEditModal && (
+        <EditVideoModal
+          video={fullVideo}
+          onClose={() => setShowEditModal(false)}
+          onSaved={handleVideoSaved}
         />
       )}
     </div>

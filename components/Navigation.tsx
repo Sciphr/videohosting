@@ -78,16 +78,28 @@ export default function Navigation() {
               </Link>
 
               {session && (
-                <Link
-                  href="/upload"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    isActive('/upload')
-                      ? 'border-blue-500 text-white'
-                      : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
-                  }`}
-                >
-                  Upload
-                </Link>
+                <>
+                  <Link
+                    href="/upload"
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      isActive('/upload')
+                        ? 'border-blue-500 text-white'
+                        : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+                    }`}
+                  >
+                    Upload
+                  </Link>
+                  <Link
+                    href="/analytics"
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      isActive('/analytics')
+                        ? 'border-blue-500 text-white'
+                        : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+                    }`}
+                  >
+                    Analytics
+                  </Link>
+                </>
               )}
             </div>
           </div>

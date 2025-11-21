@@ -36,7 +36,9 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           likeCount: video.likeCount || 0,
           commentCount: video.commentCount || 0,
         }}
+        fullVideo={video}
         isAuthenticated={!!session}
+        currentUserId={session?.user?.id}
       />
 
       {/* Parent Video Link (if this is a clip) */}

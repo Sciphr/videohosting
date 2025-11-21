@@ -54,7 +54,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - Protected API routes
   - Session-based authentication
 
-#### 3. API Routes (31 endpoints)
+#### 3. API Routes (32 endpoints)
 - **Video Routes:**
   - `GET /api/videos` - List videos with filtering (videoType, game, user)
   - `POST /api/videos` - Create new video
@@ -94,6 +94,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `GET /api/search` - Search videos, users, and games
   - `POST /api/tags` - Create custom tags
   - `GET /api/socket` - Initialize Socket.io server (Pages API)
+  - `GET /api/analytics` - Get user's video analytics and stats
 
 #### 4. Frontend Pages & UI
 - **Core Pages:**
@@ -109,6 +110,7 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - `/party/[roomCode]` - Watch party room with synchronized playback and chat
   - `/party/join` - Join watch party by entering room code
   - `/party/active` - Browse all active watch parties with live updates
+  - `/analytics` - Video analytics dashboard (protected)
 - **Layout Components:**
   - Root layout with Providers wrapper
   - Navigation component with search bar and watch party link
@@ -412,6 +414,88 @@ Building a video hosting platform for friends/family focused on gaming content. 
   - In-memory participant storage (consider Redis for scale)
   - Efficient event broadcasting to room members only
   - Automatic cleanup on disconnect
+
+#### 13. Video Edit Metadata
+- **Edit Functionality:**
+  - Video owners can edit their video metadata after upload
+  - Edit button shown only to video owner on watch page
+  - Modal-based editing interface
+  - Real-time updates after saving
+- **Editable Fields:**
+  - Title (required, max 100 chars)
+  - Description (optional, max 1000 chars)
+  - Game selection (with dropdown of existing games)
+  - Tags (add/remove with chip UI)
+- **Edit Modal UI:**
+  - Clean modal overlay with form
+  - Game dropdown with all available games
+  - Tag input with Enter key support
+  - Tag chips with remove buttons
+  - Cancel and Save buttons
+  - Loading state during save
+  - Error handling and display
+- **API Integration:**
+  - Uses existing `PATCH /api/videos/[id]` endpoint
+  - Updates title, description, gameId, and tags
+  - Auto-creates tags if they don't exist
+  - Returns updated video data
+- **Components:**
+  - `EditVideoModal.tsx` - Edit modal component
+  - Edit button in `WatchPageClient.tsx`
+- **User Experience:**
+  - Page refreshes after successful save
+  - All changes reflected immediately
+  - Only video owner sees edit button
+  - Validation prevents empty titles
+
+#### 14. Video Analytics Dashboard
+- **Analytics Page (`/analytics`):**
+  - Protected page for authenticated users
+  - Shows comprehensive video performance metrics
+  - Auto-refreshes data on load
+  - Clean, gaming-themed dashboard design
+- **Total Stats Cards:**
+  - Total Videos count
+  - Total Views across all videos
+  - Total Likes received
+  - Total Comments received
+  - Total Clips created from user's videos
+  - Color-coded cards (blue, red, green, purple)
+- **Views Chart (Last 30 Days):**
+  - Bar chart showing daily view counts
+  - Hover tooltips with exact counts and dates
+  - Visual scaling based on max value
+  - Responsive height and width
+  - Built with native HTML/CSS (no chart library)
+- **Top Performing Videos Table:**
+  - Sortable list of top 10 videos by views
+  - Columns: Title, Game, Views, Likes, Comments, Clips
+  - Upload date for each video
+  - "View" link to watch each video
+  - Color-coded metrics matching stats cards
+  - Responsive table layout
+- **Analytics API (`GET /api/analytics`):**
+  - Calculates totals from all user videos
+  - Groups views by date for chart data
+  - Returns top videos sorted by view count
+  - Includes engagement metrics (likes, comments, clips)
+  - Protected endpoint (requires authentication)
+- **Data Included:**
+  - Video performance metrics
+  - Engagement statistics
+  - Recent activity (30-day window)
+  - Per-video breakdown
+  - Game associations
+- **UI Features:**
+  - Loading spinner while fetching data
+  - Error state handling
+  - Empty state for new users
+  - Direct links to videos from table
+  - Clean, scannable layout
+- **Navigation:**
+  - "Analytics" link in main nav (auth required)
+  - Easy access for content creators
+  - Positioned next to Upload link
 
 ### 🚧 In Progress / Planned
 
