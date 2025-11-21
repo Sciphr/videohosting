@@ -26,6 +26,7 @@ export default function ActiveWatchPartiesPage() {
   const [parties, setParties] = useState<ActiveParty[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
   useEffect(() => {
     fetchActiveParties()
@@ -53,6 +54,13 @@ export default function ActiveWatchPartiesPage() {
 
   const handleJoinParty = (roomCode: string) => {
     router.push(`/party/${roomCode}`)
+  }
+
+  const handleCopyCode = (e: React.MouseEvent, roomCode: string) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(roomCode)
+    setCopiedCode(roomCode)
+    setTimeout(() => setCopiedCode(null), 2000)
   }
 
   if (isLoading) {
@@ -163,8 +171,25 @@ export default function ActiveWatchPartiesPage() {
                     <span className="font-semibold">{party.participantCount} watching</span>
                   </div>
 
-                  <div className="text-xs text-gray-500 font-mono">
-                    {party.roomCode}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 font-mono">
+                      {party.roomCode}
+                    </span>
+                    <button
+                      onClick={(e) => handleCopyCode(e, party.roomCode)}
+                      className="p-1 hover:bg-gray-800 rounded transition-colors group"
+                      title="Copy room code"
+                    >
+                      {copiedCode === party.roomCode ? (
+                        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
 

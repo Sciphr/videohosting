@@ -29,6 +29,8 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
   const [showEditModal, setShowEditModal] = useState(false)
   const [isCreatingParty, setIsCreatingParty] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [timestampCopied, setTimestampCopied] = useState(false)
+  const [theaterMode, setTheaterMode] = useState(false)
 
   const isVideoOwner = currentUserId && fullVideo.uploaderId === currentUserId
 
@@ -41,6 +43,25 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
     navigator.clipboard.writeText(url)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  const handleCopyTimestamp = () => {
+    if (playerRef.current) {
+      const currentTime = Math.floor(playerRef.current.currentTime())
+      const url = `${window.location.origin}/watch/${video.id}?t=${currentTime}`
+      navigator.clipboard.writeText(url)
+      setTimestampCopied(true)
+      setTimeout(() => setTimestampCopied(false), 2000)
+    }
+  }
+
+  const handleDownload = () => {
+    const link = document.createElement('a')
+    link.href = video.fileUrl
+    link.download = `${fullVideo.title}.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleStartWatchParty = async () => {
@@ -80,8 +101,8 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-black rounded-lg overflow-hidden">
+    <div className={`space-y-6 ${theaterMode ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto' : ''}`}>
+      <div className={`bg-black rounded-lg overflow-hidden ${theaterMode ? 'w-full h-[80vh]' : ''}`}>
         <VideoPlayer
           src={video.fileUrl}
           poster={video.thumbnailUrl || undefined}
@@ -92,10 +113,23 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
 
       {/* Action Buttons */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <LikeButton
-          videoId={video.id}
-          initialLikeCount={video.likeCount}
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <LikeButton
+            videoId={video.id}
+            initialLikeCount={video.likeCount}
+          />
+
+          <button
+            onClick={() => setTheaterMode(!theaterMode)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+            title="Theater Mode"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            {theaterMode ? 'Exit' : 'Theater'}
+          </button>
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -119,16 +153,51 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
             )}
           </button>
 
+          <button
+            onClick={handleCopyTimestamp}
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/80"
+            title="Copy link with current timestamp"
+          >
+            {timestampCopied ? (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Copy @ Time
+              </>
+            )}
+          </button>
+
           {isVideoOwner && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Edit
-            </button>
+            <>
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-green-500/50 hover:shadow-green-500/80"
+                title="Download video"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+            </>
           )}
 
           {isAuthenticated && (

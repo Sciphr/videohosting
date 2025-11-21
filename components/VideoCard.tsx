@@ -26,6 +26,12 @@ export default function VideoCard({ id, title, thumbnailUrl, duration, viewCount
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const handleGameClick = (e: React.MouseEvent, gameName: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    window.location.href = `/search?q=${encodeURIComponent(gameName)}&type=videos`
+  }
+
   return (
     <Link href={`/watch/${id}`} className="group">
       <div className="bg-gray-900 rounded-lg overflow-hidden border-2 border-gray-800 hover:border-blue-500 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20">
@@ -75,7 +81,10 @@ export default function VideoCard({ id, title, thumbnailUrl, duration, viewCount
           </div>
           {game && (
             <div className="mt-2">
-              <span className="inline-block bg-blue-900/30 text-blue-400 text-xs px-2 py-1 rounded">
+              <span
+                onClick={(e) => handleGameClick(e, game.name)}
+                className="inline-block bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 hover:text-blue-200 text-xs px-2 py-1 rounded border border-blue-500/30 transition-all cursor-pointer"
+              >
                 {game.name}
               </span>
             </div>
