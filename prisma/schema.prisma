@@ -69,6 +69,7 @@ model User {
   notifications       Notification[]
   hostedParties       WatchParty[]            @relation("WatchPartyHost")
   partyParticipations WatchPartyParticipant[]
+  playlists           Playlist[]
 
   // Following system
   followers Follow[] @relation("Following")
@@ -148,6 +149,7 @@ model Video {
   likes        Like[]
   tags         VideoTag[]
   watchParties WatchParty[]
+  playlists    PlaylistVideo[]
 
   // Multi-POV sync (linked videos from same game session)
   povGroupId String? // Videos from same game session
@@ -403,4 +405,60 @@ model VideoView {
   @@index([videoId])
   @@index([userId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// PLAYLIST MODELS
+// ============================================================================
+
+model Playlist {
+  id String @id @default(cuid())
+
+  // Basic info
+  name        String
+  description String?
+
+  // Ownership
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Visibility
+  isPublic Boolean @default(true)
+
+  // Thumbnail (uses first video's thumbnail if not set)
+  thumbnailUrl String?
+
+  // Stats
+  videoCount Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  videos PlaylistVideo[]
+
+  @@index([userId])
+  @@index([isPublic])
+  @@index([createdAt])
+}
+
+model PlaylistVideo {
+  id String @id @default(cuid())
+
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Position in playlist for ordering
+  position Int
+
+  // When added
+  addedAt DateTime @default(now())
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@index([videoId])
 }
