@@ -1,13 +1,23 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import VideoPlayer from '@/components/VideoPlayer'
 import LikeButton from '@/components/LikeButton'
 import CommentSection from '@/components/CommentSection'
 import ClipCreator from '@/components/ClipCreator'
 import EditVideoModal from '@/components/EditVideoModal'
+import ChapterManager from '@/components/ChapterManager'
+import ChapterList from '@/components/ChapterList'
 import Player from 'video.js/dist/types/player'
+
+interface Chapter {
+  id: string
+  title: string
+  timestamp: number
+  thumbnailUrl?: string | null
+  position: number
+}
 
 interface WatchPageClientProps {
   video: {
@@ -27,12 +37,33 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
   const playerRef = useRef<Player | null>(null)
   const [showClipCreator, setShowClipCreator] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showWatchPartyModal, setShowWatchPartyModal] = useState(false)
+  const [showChapterManager, setShowChapterManager] = useState(false)
   const [isCreatingParty, setIsCreatingParty] = useState(false)
+  const [requireAuth, setRequireAuth] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [timestampCopied, setTimestampCopied] = useState(false)
   const [theaterMode, setTheaterMode] = useState(false)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [currentTime, setCurrentTime] = useState(0)
 
   const isVideoOwner = currentUserId && fullVideo.uploaderId === currentUserId
+
+  // Fetch chapters on mount
+  useEffect(() => {
+    const fetchChapters = async () => {
+      try {
+        const res = await fetch(`/api/videos/${video.id}/chapters`)
+        if (res.ok) {
+          const data = await res.json()
+          setChapters(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch chapters:', err)
+      }
+    }
+    fetchChapters()
+  }, [video.id])
 
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
@@ -72,7 +103,7 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ videoId: video.id }),
+        body: JSON.stringify({ videoId: video.id, requireAuth }),
       })
 
       if (!res.ok) {
@@ -107,7 +138,9 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           src={video.fileUrl}
           poster={video.thumbnailUrl || undefined}
           videoId={video.id}
+          chapters={chapters}
           onPlayerReady={handlePlayerReady}
+          onTimeUpdate={setCurrentTime}
         />
       </div>
 
@@ -188,6 +221,16 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
               </button>
 
               <button
+                onClick={() => setShowChapterManager(!showChapterManager)}
+                className={`flex items-center gap-2 px-4 py-2 ${showChapterManager ? 'bg-violet-600 hover:bg-violet-700' : 'bg-gray-800 hover:bg-gray-700'} text-white rounded-lg font-medium transition-colors`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                Chapters
+              </button>
+
+              <button
                 onClick={handleDownload}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-green-500/50 hover:shadow-green-500/80"
                 title="Download video"
@@ -203,14 +246,13 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           {isAuthenticated && (
             <>
               <button
-                onClick={handleStartWatchParty}
-                disabled={isCreatingParty}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                onClick={() => setShowWatchPartyModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                {isCreatingParty ? 'Creating...' : 'Watch Party'}
+                Watch Party
               </button>
               <button
                 onClick={() => setShowClipCreator(true)}
@@ -225,6 +267,26 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           )}
         </div>
       </div>
+
+      {/* Chapter Manager for Video Owner */}
+      {isVideoOwner && showChapterManager && (
+        <ChapterManager
+          videoId={video.id}
+          videoDuration={fullVideo.duration}
+          player={playerRef.current}
+          onChaptersChange={setChapters}
+        />
+      )}
+
+      {/* Chapter List for Viewers (only show if there are chapters and not showing manager) */}
+      {chapters.length > 0 && !showChapterManager && (
+        <ChapterList
+          videoId={video.id}
+          chapters={chapters}
+          currentTime={currentTime}
+          onChapterClick={handleTimestampClick}
+        />
+      )}
 
       {/* Comments */}
       <CommentSection
@@ -250,6 +312,97 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           onClose={() => setShowEditModal(false)}
           onSaved={handleVideoSaved}
         />
+      )}
+
+      {/* Watch Party Modal */}
+      {showWatchPartyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowWatchPartyModal(false)}
+          />
+          <div className="relative bg-gray-900 rounded-xl p-6 w-full max-w-md border border-gray-800 shadow-2xl">
+            <button
+              onClick={() => setShowWatchPartyModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-purple-600/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Start Watch Party</h2>
+                <p className="text-gray-400 text-sm">Watch together with friends</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={requireAuth}
+                  onChange={(e) => setRequireAuth(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
+                />
+                <div className="flex-1">
+                  <div className="text-white font-medium">Require sign-in to join</div>
+                  <div className="text-gray-400 text-sm">Only users with accounts can join this watch party</div>
+                </div>
+              </label>
+
+              <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-gray-300">
+                    <p className="mb-1">As the host, you control playback for all viewers.</p>
+                    <p className="text-gray-400">Guests will automatically sync to your position.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowWatchPartyModal(false)}
+                className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowWatchPartyModal(false)
+                  handleStartWatchParty()
+                }}
+                disabled={isCreatingParty}
+                className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {isCreatingParty ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Start Party
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

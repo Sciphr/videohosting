@@ -20,6 +20,8 @@ enum VideoType {
 
 enum VideoStatus {
   PROCESSING // Being uploaded/processed
+  DRAFT // Uploaded but not published
+  SCHEDULED // Scheduled for future publication
   READY // Available for viewing
   FAILED // Processing failed
   DELETED // Soft deleted
@@ -50,6 +52,7 @@ model User {
   displayName  String?
   passwordHash String
   avatarUrl    String?
+  bannerUrl    String?
   bio          String?
 
   // Settings
@@ -69,6 +72,8 @@ model User {
   notifications       Notification[]
   hostedParties       WatchParty[]            @relation("WatchPartyHost")
   partyParticipations WatchPartyParticipant[]
+  playlists           Playlist[]
+  streams             Stream[]
 
   // Following system
   followers Follow[] @relation("Following")
@@ -139,15 +144,19 @@ model Video {
   isFeatured Boolean @default(false)
 
   // Timestamps
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // Soft delete
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime? // Soft delete
+  scheduledPublishAt DateTime? // When to auto-publish (for SCHEDULED status)
+  publishedAt        DateTime? // When the video was actually published
 
   // Relations
   comments     Comment[]
   likes        Like[]
   tags         VideoTag[]
   watchParties WatchParty[]
+  playlists    PlaylistVideo[]
+  chapters     Chapter[]
 
   // Multi-POV sync (linked videos from same game session)
   povGroupId String? // Videos from same game session
@@ -159,6 +168,7 @@ model Video {
   @@index([parentVideoId])
   @@index([createdAt])
   @@index([povGroupId])
+  @@index([scheduledPublishAt])
 }
 
 // ============================================================================
@@ -176,7 +186,8 @@ model Game {
   updatedAt DateTime @updatedAt
 
   // Relations
-  videos Video[]
+  videos  Video[]
+  streams Stream[]
 
   @@index([slug])
 }
@@ -302,7 +313,8 @@ model WatchParty {
   isPlaying   Boolean @default(false)
 
   // Settings
-  maxParticipants Int @default(10)
+  maxParticipants Int     @default(10)
+  requireAuth     Boolean @default(false) // Require users to be logged in to join
 
   // Timestamps
   createdAt DateTime  @default(now())
@@ -402,5 +414,175 @@ model VideoView {
 
   @@index([videoId])
   @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// PLAYLIST MODELS
+// ============================================================================
+
+model Playlist {
+  id String @id @default(cuid())
+
+  // Basic info
+  name        String
+  description String?
+
+  // Ownership
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Visibility
+  isPublic Boolean @default(true)
+
+  // Thumbnail (uses first video's thumbnail if not set)
+  thumbnailUrl String?
+
+  // Stats
+  videoCount Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  videos PlaylistVideo[]
+
+  @@index([userId])
+  @@index([isPublic])
+  @@index([createdAt])
+}
+
+model PlaylistVideo {
+  id String @id @default(cuid())
+
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Position in playlist for ordering
+  position Int
+
+  // When added
+  addedAt DateTime @default(now())
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@index([videoId])
+}
+
+// ============================================================================
+// CHAPTER MODEL
+// ============================================================================
+
+model Chapter {
+  id String @id @default(cuid())
+
+  // Video this chapter belongs to
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Chapter info
+  title     String
+  timestamp Float  // Start time in seconds
+
+  // Optional thumbnail for chapter preview
+  thumbnailUrl String?
+
+  // Position for ordering (in case timestamps aren't unique)
+  position Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([videoId])
+  @@index([timestamp])
+}
+
+// ============================================================================
+// STREAMING ENUMS
+// ============================================================================
+
+enum StreamStatus {
+  OFFLINE    // Not streaming
+  LIVE       // Currently live
+  ENDED      // Stream ended (for VOD)
+}
+
+// ============================================================================
+// STREAM MODEL
+// ============================================================================
+
+model Stream {
+  id String @id @default(cuid())
+
+  // Stream info
+  title       String
+  description String?
+
+  // Stream key (used by OBS to connect)
+  streamKey String @unique
+
+  // Status
+  status StreamStatus @default(OFFLINE)
+
+  // HLS playback URL (generated when live)
+  hlsUrl String?
+
+  // Thumbnail (can be set by streamer or auto-captured)
+  thumbnailUrl String?
+
+  // Category/Game
+  gameId String?
+  game   Game?   @relation(fields: [gameId], references: [id])
+
+  // Streamer
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Stats
+  viewerCount    Int @default(0)
+  peakViewerCount Int @default(0)
+
+  // Timestamps
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Chat messages for this stream
+  chatMessages StreamChat[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([streamKey])
+  @@index([gameId])
+}
+
+// ============================================================================
+// STREAM CHAT MODEL
+// ============================================================================
+
+model StreamChat {
+  id String @id @default(cuid())
+
+  // Message content
+  message String
+
+  // Stream this belongs to
+  streamId String
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  // Author (null for system messages)
+  userId   String?
+  username String  // Store username at time of message
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([streamId])
   @@index([createdAt])
 }

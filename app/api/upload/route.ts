@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
     const videoType = formData.get('videoType') as 'CLIP' | 'FULL'
     const gameId = formData.get('gameId') as string | null
     const tags = formData.get('tags') as string // JSON string array
+    const publishMode = (formData.get('publishMode') as 'now' | 'draft' | 'scheduled') || 'now'
+    const scheduledPublishAt = formData.get('scheduledPublishAt') as string | null
 
     // Validate file
     if (!file) {
@@ -129,6 +131,21 @@ export async function POST(request: NextRequest) {
         console.error('Failed to parse tags:', e)
       }
 
+      // Determine video status based on publish mode
+      let videoStatus: 'READY' | 'DRAFT' | 'SCHEDULED' = 'READY'
+      let scheduledDateTime: Date | null = null
+      let publishedDateTime: Date | null = null
+
+      if (publishMode === 'draft') {
+        videoStatus = 'DRAFT'
+      } else if (publishMode === 'scheduled' && scheduledPublishAt) {
+        videoStatus = 'SCHEDULED'
+        scheduledDateTime = new Date(scheduledPublishAt)
+      } else {
+        // Publish now
+        publishedDateTime = new Date()
+      }
+
       // Create video entry in database
       const video = await prisma.video.create({
         data: {
@@ -142,7 +159,9 @@ export async function POST(request: NextRequest) {
           thumbnailUrl: thumbnailUrl,
           duration: duration,
           gameId: gameId || null,
-          status: 'READY',
+          status: videoStatus,
+          scheduledPublishAt: scheduledDateTime,
+          publishedAt: publishedDateTime,
         },
         include: {
           uploader: {
@@ -168,9 +187,11 @@ export async function POST(request: NextRequest) {
             })
 
             if (!tag) {
+              const slug = trimmedTag.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
               tag = await prisma.tag.create({
                 data: {
                   name: trimmedTag,
+                  slug: slug,
                   type: 'CUSTOM'
                 }
               })

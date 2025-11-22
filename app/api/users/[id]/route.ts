@@ -18,6 +18,7 @@ export async function GET(
         username: true,
         displayName: true,
         avatarUrl: true,
+        bannerUrl: true,
         bio: true,
         isPrivate: true,
         createdAt: true,
@@ -91,7 +92,7 @@ export async function PATCH(
       );
     }
 
-    const { displayName, bio, avatarUrl, isPrivate, emailNotifications } = await request.json();
+    const { displayName, bio, avatarUrl, bannerUrl, isPrivate, emailNotifications } = await request.json();
 
     const updatedUser = await prisma.user.update({
       where: { id },
@@ -99,6 +100,7 @@ export async function PATCH(
         ...(displayName !== undefined && { displayName }),
         ...(bio !== undefined && { bio }),
         ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(bannerUrl !== undefined && { bannerUrl }),
         ...(isPrivate !== undefined && { isPrivate }),
         ...(emailNotifications !== undefined && { emailNotifications }),
       },
@@ -107,6 +109,7 @@ export async function PATCH(
         username: true,
         displayName: true,
         avatarUrl: true,
+        bannerUrl: true,
         bio: true,
         isPrivate: true,
         emailNotifications: true,

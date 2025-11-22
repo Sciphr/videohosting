@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import EditProfileModal from './EditProfileModal'
+import Link from 'next/link'
 
 interface ProfileClientProps {
   userId: string
@@ -11,11 +11,10 @@ interface ProfileClientProps {
   user: any
 }
 
-export default function ProfileClient({ userId, isOwnProfile, isFollowing: initialFollowing, user }: ProfileClientProps) {
+export default function ProfileClient({ userId, isOwnProfile, isFollowing: initialFollowing }: ProfileClientProps) {
   const router = useRouter()
   const [isFollowing, setIsFollowing] = useState(initialFollowing)
   const [isLoading, setIsLoading] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
 
   const handleFollow = async () => {
     setIsLoading(true)
@@ -36,25 +35,15 @@ export default function ProfileClient({ userId, isOwnProfile, isFollowing: initi
 
   if (isOwnProfile) {
     return (
-      <>
-        <button
-          onClick={() => setShowEditModal(true)}
-          className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-        >
-          Edit Profile
-        </button>
-        
-        {showEditModal && (
-          <EditProfileModal
-            user={user}
-            onClose={() => setShowEditModal(false)}
-            onUpdate={() => {
-              setShowEditModal(false)
-              router.refresh()
-            }}
-          />
-        )}
-      </>
+      <Link
+        href="/settings/profile"
+        className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        Edit Profile
+      </Link>
     )
   }
 

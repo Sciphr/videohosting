@@ -21,6 +21,9 @@ export default function UploadPage() {
     videoType: 'CLIP' as 'CLIP' | 'FULL',
     gameId: '',
   })
+  const [publishMode, setPublishMode] = useState<'now' | 'draft' | 'scheduled'>('now')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [games, setGames] = useState<Game[]>([])
   const [tags, setTags] = useState<string[]>([])
@@ -120,16 +123,35 @@ export default function UploadPage() {
         return
       }
 
+      // Validate scheduled date if scheduling
+      if (publishMode === 'scheduled') {
+        if (!scheduledDate || !scheduledTime) {
+          setError('Please select a date and time for scheduled publishing')
+          setIsUploading(false)
+          return
+        }
+        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`)
+        if (scheduledDateTime <= new Date()) {
+          setError('Scheduled time must be in the future')
+          setIsUploading(false)
+          return
+        }
+      }
+
       const uploadFormData = new FormData()
       uploadFormData.append('file', file)
       uploadFormData.append('title', formData.title.trim())
       uploadFormData.append('description', formData.description.trim())
       uploadFormData.append('videoType', formData.videoType)
+      uploadFormData.append('publishMode', publishMode)
       if (formData.gameId) {
         uploadFormData.append('gameId', formData.gameId)
       }
       if (tags.length > 0) {
         uploadFormData.append('tags', JSON.stringify(tags))
+      }
+      if (publishMode === 'scheduled' && scheduledDate && scheduledTime) {
+        uploadFormData.append('scheduledPublishAt', `${scheduledDate}T${scheduledTime}`)
       }
 
       // Use XMLHttpRequest for progress tracking
@@ -147,8 +169,13 @@ export default function UploadPage() {
         if (xhr.status === 201) {
           try {
             const data = JSON.parse(xhr.responseText)
-            // Redirect to the uploaded video
-            router.push(`/watch/${data.video.id}`)
+            // Redirect based on publish mode
+            if (publishMode === 'now') {
+              router.push(`/watch/${data.video.id}`)
+            } else {
+              // For draft or scheduled, go to creator dashboard
+              router.push('/dashboard/videos')
+            }
           } catch (e) {
             setError('Upload successful but failed to parse response')
             setUploadProgress(0)
@@ -479,13 +506,130 @@ export default function UploadPage() {
           )}
         </div>
 
+        {/* Publish Options */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-3">
+            Publish Options
+          </label>
+          <div className="space-y-3">
+            {/* Publish Now */}
+            <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              publishMode === 'now'
+                ? 'border-blue-500 bg-blue-900/20'
+                : 'border-gray-700 hover:border-gray-600'
+            }`}>
+              <input
+                type="radio"
+                value="now"
+                checked={publishMode === 'now'}
+                onChange={() => setPublishMode('now')}
+                className="sr-only"
+                disabled={isUploading}
+              />
+              <div className="flex-1">
+                <p className="text-white font-medium">Publish Now</p>
+                <p className="text-sm text-gray-400">Video will be visible immediately after upload</p>
+              </div>
+              {publishMode === 'now' && (
+                <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+            </label>
+
+            {/* Save as Draft */}
+            <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              publishMode === 'draft'
+                ? 'border-blue-500 bg-blue-900/20'
+                : 'border-gray-700 hover:border-gray-600'
+            }`}>
+              <input
+                type="radio"
+                value="draft"
+                checked={publishMode === 'draft'}
+                onChange={() => setPublishMode('draft')}
+                className="sr-only"
+                disabled={isUploading}
+              />
+              <div className="flex-1">
+                <p className="text-white font-medium">Save as Draft</p>
+                <p className="text-sm text-gray-400">Upload now, publish manually later from your dashboard</p>
+              </div>
+              {publishMode === 'draft' && (
+                <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+            </label>
+
+            {/* Schedule */}
+            <div className={`border-2 rounded-lg transition-all ${
+              publishMode === 'scheduled'
+                ? 'border-blue-500 bg-blue-900/20'
+                : 'border-gray-700 hover:border-gray-600'
+            }`}>
+              <label className="flex items-center p-4 cursor-pointer">
+                <input
+                  type="radio"
+                  value="scheduled"
+                  checked={publishMode === 'scheduled'}
+                  onChange={() => setPublishMode('scheduled')}
+                  className="sr-only"
+                  disabled={isUploading}
+                />
+                <div className="flex-1">
+                  <p className="text-white font-medium">Schedule for Later</p>
+                  <p className="text-sm text-gray-400">Choose when your video goes live</p>
+                </div>
+                {publishMode === 'scheduled' && (
+                  <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </label>
+
+              {publishMode === 'scheduled' && (
+                <div className="px-4 pb-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                      disabled={isUploading}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Time</label>
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                      disabled={isUploading}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Submit Button */}
         <button
           type="submit"
           disabled={isUploading || !file}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isUploading ? (uploadProgress < 100 ? 'Uploading...' : 'Processing...') : 'Upload Video'}
+          {isUploading
+            ? (uploadProgress < 100 ? 'Uploading...' : 'Processing...')
+            : publishMode === 'now'
+              ? 'Upload & Publish'
+              : publishMode === 'draft'
+                ? 'Upload as Draft'
+                : 'Upload & Schedule'}
         </button>
       </form>
     </div>
