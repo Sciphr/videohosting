@@ -43,19 +43,34 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
+      {/* Banner */}
+      <div className="relative h-48 md:h-64 bg-gray-800 -mx-6 -mt-6 mb-6 overflow-hidden">
+        {user.bannerUrl ? (
+          <img
+            src={user.bannerUrl}
+            alt={`${user.displayName || user.username}'s banner`}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-r from-blue-900/50 via-purple-900/50 to-pink-900/50" />
+        )}
+        {/* Gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/50 to-transparent" />
+      </div>
+
       {/* Profile Header */}
-      <div className="bg-gray-900 rounded-lg p-8 mb-8">
-        <div className="flex items-start gap-6">
+      <div className="relative -mt-24 mb-8 px-6">
+        <div className="flex flex-col md:flex-row items-start gap-6">
           {/* Avatar */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 relative">
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
                 alt={user.displayName || user.username}
-                className="w-32 h-32 rounded-full"
+                className="w-32 h-32 rounded-full border-4 border-gray-950 bg-gray-800"
               />
             ) : (
-              <div className="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center">
+              <div className="w-32 h-32 rounded-full bg-gray-700 border-4 border-gray-950 flex items-center justify-center">
                 <span className="text-4xl font-bold text-gray-300">
                   {(user.displayName || user.username)[0].toUpperCase()}
                 </span>
@@ -64,8 +79,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* User Info */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
+          <div className="flex-1 pt-4 md:pt-12">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-3xl font-bold text-white mb-1">
                   {user.displayName || user.username}
@@ -84,7 +99,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
 
             {/* Bio */}
             {user.bio && (
-              <p className="text-gray-300 mb-4">{user.bio}</p>
+              <p className="text-gray-300 mb-4 max-w-2xl">{user.bio}</p>
             )}
 
             {/* Stats */}

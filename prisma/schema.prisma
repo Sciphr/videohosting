@@ -52,6 +52,7 @@ model User {
   displayName  String?
   passwordHash String
   avatarUrl    String?
+  bannerUrl    String?
   bio          String?
 
   // Settings

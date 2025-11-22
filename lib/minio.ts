@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 import fs from 'fs'
 import path from 'path'
@@ -89,6 +89,24 @@ export async function uploadToMinIO(
   } catch (error) {
     console.error('Error uploading to MinIO:', error)
     throw new Error(`Failed to upload file to MinIO: ${error.message}`)
+  }
+}
+
+/**
+ * Delete a file from MinIO
+ * @param s3Key The S3 key (path) of the file to delete
+ */
+export async function deleteFromMinIO(s3Key: string): Promise<void> {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: s3Key,
+    })
+
+    await s3Client.send(command)
+  } catch (error) {
+    console.error('Error deleting from MinIO:', error)
+    throw new Error(`Failed to delete file from MinIO: ${error.message}`)
   }
 }
 
