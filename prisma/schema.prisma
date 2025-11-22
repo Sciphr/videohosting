@@ -150,6 +150,7 @@ model Video {
   tags         VideoTag[]
   watchParties WatchParty[]
   playlists    PlaylistVideo[]
+  chapters     Chapter[]
 
   // Multi-POV sync (linked videos from same game session)
   povGroupId String? // Videos from same game session
@@ -462,4 +463,33 @@ model PlaylistVideo {
   @@unique([playlistId, videoId])
   @@index([playlistId])
   @@index([videoId])
+}
+
+// ============================================================================
+// CHAPTER MODEL
+// ============================================================================
+
+model Chapter {
+  id String @id @default(cuid())
+
+  // Video this chapter belongs to
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  // Chapter info
+  title     String
+  timestamp Float  // Start time in seconds
+
+  // Optional thumbnail for chapter preview
+  thumbnailUrl String?
+
+  // Position for ordering (in case timestamps aren't unique)
+  position Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([videoId])
+  @@index([timestamp])
 }

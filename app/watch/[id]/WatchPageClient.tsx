@@ -1,13 +1,23 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import VideoPlayer from '@/components/VideoPlayer'
 import LikeButton from '@/components/LikeButton'
 import CommentSection from '@/components/CommentSection'
 import ClipCreator from '@/components/ClipCreator'
 import EditVideoModal from '@/components/EditVideoModal'
+import ChapterManager from '@/components/ChapterManager'
+import ChapterList from '@/components/ChapterList'
 import Player from 'video.js/dist/types/player'
+
+interface Chapter {
+  id: string
+  title: string
+  timestamp: number
+  thumbnailUrl?: string | null
+  position: number
+}
 
 interface WatchPageClientProps {
   video: {
@@ -28,13 +38,32 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
   const [showClipCreator, setShowClipCreator] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showWatchPartyModal, setShowWatchPartyModal] = useState(false)
+  const [showChapterManager, setShowChapterManager] = useState(false)
   const [isCreatingParty, setIsCreatingParty] = useState(false)
   const [requireAuth, setRequireAuth] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [timestampCopied, setTimestampCopied] = useState(false)
   const [theaterMode, setTheaterMode] = useState(false)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [currentTime, setCurrentTime] = useState(0)
 
   const isVideoOwner = currentUserId && fullVideo.uploaderId === currentUserId
+
+  // Fetch chapters on mount
+  useEffect(() => {
+    const fetchChapters = async () => {
+      try {
+        const res = await fetch(`/api/videos/${video.id}/chapters`)
+        if (res.ok) {
+          const data = await res.json()
+          setChapters(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch chapters:', err)
+      }
+    }
+    fetchChapters()
+  }, [video.id])
 
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
@@ -109,7 +138,9 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           src={video.fileUrl}
           poster={video.thumbnailUrl || undefined}
           videoId={video.id}
+          chapters={chapters}
           onPlayerReady={handlePlayerReady}
+          onTimeUpdate={setCurrentTime}
         />
       </div>
 
@@ -190,6 +221,16 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
               </button>
 
               <button
+                onClick={() => setShowChapterManager(!showChapterManager)}
+                className={`flex items-center gap-2 px-4 py-2 ${showChapterManager ? 'bg-violet-600 hover:bg-violet-700' : 'bg-gray-800 hover:bg-gray-700'} text-white rounded-lg font-medium transition-colors`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                Chapters
+              </button>
+
+              <button
                 onClick={handleDownload}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-green-500/50 hover:shadow-green-500/80"
                 title="Download video"
@@ -226,6 +267,26 @@ export default function WatchPageClient({ video, fullVideo, isAuthenticated, cur
           )}
         </div>
       </div>
+
+      {/* Chapter Manager for Video Owner */}
+      {isVideoOwner && showChapterManager && (
+        <ChapterManager
+          videoId={video.id}
+          videoDuration={fullVideo.duration}
+          player={playerRef.current}
+          onChaptersChange={setChapters}
+        />
+      )}
+
+      {/* Chapter List for Viewers (only show if there are chapters and not showing manager) */}
+      {chapters.length > 0 && !showChapterManager && (
+        <ChapterList
+          videoId={video.id}
+          chapters={chapters}
+          currentTime={currentTime}
+          onChapterClick={handleTimestampClick}
+        />
+      )}
 
       {/* Comments */}
       <CommentSection
