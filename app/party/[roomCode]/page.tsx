@@ -60,9 +60,14 @@ export default async function WatchPartyPage({
       redirect('/?message=watch-party-ended')
     }
 
+    // Check if authentication is required
+    if (watchParty.requireAuth && !session?.user) {
+      redirect(`/login?callbackUrl=/party/${roomCode}&message=auth-required`)
+    }
+
     console.log('Watch party loaded from database:', watchParty.roomCode)
 
-    // Allow unauthenticated users to join, but use guest info if not logged in
+    // Allow unauthenticated users to join (if not requireAuth), but use guest info if not logged in
     const currentUser = session?.user
       ? {
           id: session.user.id,

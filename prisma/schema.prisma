@@ -304,7 +304,8 @@ model WatchParty {
   isPlaying   Boolean @default(false)
 
   // Settings
-  maxParticipants Int @default(10)
+  maxParticipants Int     @default(10)
+  requireAuth     Boolean @default(false) // Require users to be logged in to join
 
   // Timestamps
   createdAt DateTime  @default(now())

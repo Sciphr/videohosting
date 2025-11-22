@@ -31,9 +31,15 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
   const [isHost, setIsHost] = useState(false)
   const [guestName, setGuestName] = useState('')
   const [guestId, setGuestId] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   const ignoreNextEvent = useRef(false)
 
   const roomCode = watchParty.roomCode
+
+  // Get the current user's ID (either from session or guest ID)
+  const getCurrentUserId = () => {
+    return currentUser?.id || guestId || ''
+  }
 
   // Initialize guest ID from localStorage on mount
   useEffect(() => {
@@ -55,7 +61,8 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
   }, [messages])
 
   useEffect(() => {
-    setIsHost(currentUser ? watchParty.hostId === currentUser.id : false)
+    const hostStatus = currentUser ? watchParty.hostId === currentUser.id : false
+    setIsHost(hostStatus)
 
     // Initialize Socket.io connection
     const initSocket = async () => {
@@ -72,23 +79,17 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
         console.log('Socket.io connected')
         setIsConnected(true)
 
-        // Join the watch party room
-        if (currentUser) {
-          socket.emit('party:join', {
-            roomCode,
-            userId: currentUser.id,
-            username: currentUser.username,
-            displayName: currentUser.displayName,
-          })
-        } else if (guestId) {
-          // Guest join - use persistent guest ID
-          socket.emit('party:join', {
-            roomCode,
-            userId: guestId,
-            username: guestName || 'Guest',
-            displayName: guestName || 'Guest',
-          })
-        }
+        const userId = currentUser?.id || guestId
+        if (!userId) return
+
+        // Join the watch party room with isHost flag
+        socket.emit('party:join', {
+          roomCode,
+          userId,
+          username: currentUser?.username || guestName || 'Guest',
+          displayName: currentUser?.displayName || guestName || 'Guest',
+          isHost: hostStatus,
+        })
       })
 
       socket.on('disconnect', () => {
@@ -99,19 +100,22 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
       // Participant events
       socket.on('party:user-joined', (data) => {
         console.log('User joined:', data.username)
+        showToast(`${data.displayName || data.username} joined the party`, 'info', 3000)
       })
 
       socket.on('party:user-left', (data) => {
         console.log('User left:', data.username)
+        showToast(`${data.username} left the party`, 'info', 3000)
       })
 
       socket.on('party:participant-list', (data) => {
         setParticipants(data.participants)
       })
 
-      // Synchronized playback events
+      // Synchronized playback events (for guests receiving host's commands)
       socket.on('party:play', (data) => {
         if (playerRef.current && !ignoreNextEvent.current) {
+          console.log('Received play command, syncing to:', data.timestamp)
           playerRef.current.currentTime(data.timestamp)
           playerRef.current.play()
         }
@@ -120,6 +124,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
 
       socket.on('party:pause', (data) => {
         if (playerRef.current && !ignoreNextEvent.current) {
+          console.log('Received pause command, syncing to:', data.timestamp)
           playerRef.current.currentTime(data.timestamp)
           playerRef.current.pause()
         }
@@ -128,9 +133,30 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
 
       socket.on('party:seek', (data) => {
         if (playerRef.current && !ignoreNextEvent.current) {
+          console.log('Received seek command, syncing to:', data.timestamp)
           playerRef.current.currentTime(data.timestamp)
         }
         ignoreNextEvent.current = false
+      })
+
+      // Sync event for new joiners
+      socket.on('party:sync', (data) => {
+        console.log('Received sync state:', data)
+        setIsSyncing(true)
+        if (playerRef.current) {
+          playerRef.current.currentTime(data.timestamp)
+          if (data.isPlaying) {
+            playerRef.current.play()
+          } else {
+            playerRef.current.pause()
+          }
+        }
+        setTimeout(() => setIsSyncing(false), 500)
+      })
+
+      // Host-only notification
+      socket.on('party:host-only', (data) => {
+        showToast(data.message, 'warning', 3000)
       })
 
       // Chat events
@@ -138,7 +164,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
         setMessages((prev) => [...prev, message])
       })
 
-      socket.on('party:kicked', (data) => {
+      socket.on('party:kicked', () => {
         showToast('You have been removed from the watch party', 'warning', 5000)
         setTimeout(() => {
           router.push('/')
@@ -146,7 +172,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
       })
 
       socket.on('party:ended', () => {
-        alert('Watch party has ended')
+        showToast('Watch party has ended', 'info', 5000)
         router.push('/')
       })
     }
@@ -158,7 +184,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
       if (socketRef.current) {
         socketRef.current.emit('party:leave', {
           roomCode,
-          userId: currentUser?.id || guestId || `guest-${Date.now()}`,
+          userId: getCurrentUserId(),
         })
         socketRef.current.disconnect()
       }
@@ -168,36 +194,42 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
   const handlePlayerReady = (player: Player) => {
     playerRef.current = player
 
-    // Attach event listeners for synchronized playback
-    player.on('play', () => {
-      if (!ignoreNextEvent.current && socketRef.current) {
-        ignoreNextEvent.current = true
-        socketRef.current.emit('party:play', {
-          roomCode,
-          timestamp: player.currentTime() || 0,
-        })
-      }
-    })
+    // Only attach control event listeners if host
+    // Guests should not emit playback events
+    if (isHost) {
+      player.on('play', () => {
+        if (!ignoreNextEvent.current && socketRef.current) {
+          ignoreNextEvent.current = true
+          socketRef.current.emit('party:play', {
+            roomCode,
+            timestamp: player.currentTime() || 0,
+            userId: getCurrentUserId(),
+          })
+        }
+      })
 
-    player.on('pause', () => {
-      if (!ignoreNextEvent.current && socketRef.current) {
-        ignoreNextEvent.current = true
-        socketRef.current.emit('party:pause', {
-          roomCode,
-          timestamp: player.currentTime() || 0,
-        })
-      }
-    })
+      player.on('pause', () => {
+        if (!ignoreNextEvent.current && socketRef.current) {
+          ignoreNextEvent.current = true
+          socketRef.current.emit('party:pause', {
+            roomCode,
+            timestamp: player.currentTime() || 0,
+            userId: getCurrentUserId(),
+          })
+        }
+      })
 
-    player.on('seeked', () => {
-      if (!ignoreNextEvent.current && socketRef.current) {
-        ignoreNextEvent.current = true
-        socketRef.current.emit('party:seek', {
-          roomCode,
-          timestamp: player.currentTime() || 0,
-        })
-      }
-    })
+      player.on('seeked', () => {
+        if (!ignoreNextEvent.current && socketRef.current) {
+          ignoreNextEvent.current = true
+          socketRef.current.emit('party:seek', {
+            roomCode,
+            timestamp: player.currentTime() || 0,
+            userId: getCurrentUserId(),
+          })
+        }
+      })
+    }
   }
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -207,14 +239,14 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
 
     // Require guests to have set a name before sending messages
     if (!currentUser && !guestName.trim()) {
-      alert('Please enter your name before sending messages')
+      showToast('Please enter your name before sending messages', 'warning', 3000)
       return
     }
 
     socketRef.current.emit('party:chat-message', {
       roomCode,
       message: newMessage.trim(),
-      userId: currentUser?.id || guestId || 'guest',
+      userId: getCurrentUserId(),
       username: currentUser?.username || guestName || 'Guest',
       displayName: currentUser?.displayName || guestName || 'Guest',
     })
@@ -224,7 +256,13 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(roomCode)
-    alert('Room code copied to clipboard!')
+    showToast('Room code copied to clipboard!', 'info', 2000)
+  }
+
+  const copyShareLink = () => {
+    const url = `${window.location.origin}/party/join?code=${roomCode}`
+    navigator.clipboard.writeText(url)
+    showToast('Share link copied!', 'info', 2000)
   }
 
   const handleCloseParty = async () => {
@@ -240,50 +278,48 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
       })
 
       if (response.ok) {
-        alert('Watch party closed')
+        showToast('Watch party closed', 'info', 3000)
         router.push('/')
       } else {
         const error = await response.json()
-        alert(`Error: ${error.error}`)
+        showToast(`Error: ${error.error}`, 'error', 5000)
       }
     } catch (error) {
       console.error('Error closing watch party:', error)
-      alert('Failed to close watch party')
+      showToast('Failed to close watch party', 'error', 5000)
     }
   }
 
   const handleKickParticipant = async (participantUserId: string) => {
-    try {
-      console.log('handleKickParticipant called with:', participantUserId)
-      // Emit socket event to remove participant (works for both authenticated users and guests)
-      if (socketRef.current) {
-        console.log('Emitting party:kick-participant to server')
-        socketRef.current.emit('party:kick-participant', {
-          roomCode,
-          userId: participantUserId,
-        })
-      } else {
-        console.log('Socket not connected')
-      }
+    if (socketRef.current) {
+      socketRef.current.emit('party:kick-participant', {
+        roomCode,
+        userId: participantUserId,
+      })
+    }
 
-      // For authenticated users, also update the database
-      if (!participantUserId.startsWith('guest-')) {
-        console.log('Calling kick API for authenticated user')
-        await fetch(`/api/watch-party/${roomCode}/kick`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: participantUserId }),
-        })
-      }
-    } catch (error) {
-      console.error('Error kicking participant:', error)
+    // For authenticated users, also update the database
+    if (!participantUserId.startsWith('guest-')) {
+      await fetch(`/api/watch-party/${roomCode}/kick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: participantUserId }),
+      })
+    }
+  }
+
+  const requestSync = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('party:request-sync', { roomCode })
+      showToast('Syncing with host...', 'info', 2000)
     }
   }
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Header */}
       <div className="mb-6 bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500/50 rounded-lg p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white mb-2">Watch Party</h1>
             <p className="text-gray-300">
@@ -307,13 +343,31 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
+                <button
+                  onClick={copyShareLink}
+                  className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  title="Copy share link"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                </button>
               </div>
             </div>
-            <div>
+            <div className="flex items-center justify-end gap-3">
               <span className={`inline-flex items-center gap-1 text-sm ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {isConnected ? 'Connected' : 'Disconnected'}
               </span>
+              {isHost ? (
+                <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full font-medium">
+                  You are the host
+                </span>
+              ) : (
+                <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full font-medium">
+                  Viewer
+                </span>
+              )}
             </div>
             {isHost && (
               <button
@@ -331,13 +385,35 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
         {/* Video Player and Chat */}
         <div className="lg:col-span-2 space-y-6">
           {/* Video Player */}
-          <div className="bg-gray-900 rounded-lg overflow-hidden">
+          <div className="bg-gray-900 rounded-lg overflow-hidden relative">
+            {isSyncing && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                <div className="text-white text-center">
+                  <div className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-2" />
+                  <p>Syncing...</p>
+                </div>
+              </div>
+            )}
             <VideoPlayer
               src={`/api/videos/${watchParty.video.id}/stream`}
               poster={watchParty.video.thumbnailUrl || undefined}
               videoId={watchParty.video.id}
               onPlayerReady={handlePlayerReady}
             />
+            {/* Show sync button for non-hosts */}
+            {!isHost && (
+              <div className="p-2 bg-gray-800 flex items-center justify-between">
+                <p className="text-sm text-gray-400">
+                  Only the host can control playback
+                </p>
+                <button
+                  onClick={requestSync}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+                >
+                  Sync with host
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Chat */}
@@ -345,7 +421,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
             <h2 className="text-xl font-bold text-white mb-4">Chat</h2>
 
             {/* Messages */}
-            <div className="h-96 overflow-y-auto mb-4 space-y-2 bg-gray-800 rounded-lg p-3">
+            <div className="h-80 overflow-y-auto mb-4 space-y-2 bg-gray-800 rounded-lg p-3">
               {messages.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No messages yet. Start the conversation!</p>
               ) : (
@@ -414,12 +490,12 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                    {participant.displayName[0].toUpperCase()}
+                    {(participant.displayName || participant.username || 'G')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-white truncate">
-                      {participant.displayName}
-                      {participant.userId === watchParty.hostId && (
+                      {participant.displayName || participant.username}
+                      {participant.isHost && (
                         <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded">Host</span>
                       )}
                       {currentUser && participant.userId === currentUser.id && (
@@ -429,7 +505,7 @@ export default function WatchPartyClient({ watchParty, currentUser, isAuthentica
                     <p className="text-sm text-gray-400 truncate">@{participant.username}</p>
                   </div>
                 </div>
-                {isHost && participant.userId !== watchParty.hostId && participant.userId !== currentUser?.id && (
+                {isHost && !participant.isHost && participant.userId !== currentUser?.id && (
                   <button
                     onClick={() => handleKickParticipant(participant.userId)}
                     className="p-1.5 hover:bg-red-600/80 text-red-400 hover:text-white rounded transition-colors flex-shrink-0"

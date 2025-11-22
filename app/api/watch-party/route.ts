@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { videoId } = body
+    const { videoId, requireAuth = false } = body
 
     if (!videoId) {
       return NextResponse.json(
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
         videoId,
         hostId: session.user.id,
         isActive: true,
+        requireAuth: Boolean(requireAuth),
       },
       include: {
         video: {
