@@ -20,6 +20,8 @@ enum VideoType {
 
 enum VideoStatus {
   PROCESSING // Being uploaded/processed
+  DRAFT // Uploaded but not published
+  SCHEDULED // Scheduled for future publication
   READY // Available for viewing
   FAILED // Processing failed
   DELETED // Soft deleted
@@ -141,9 +143,11 @@ model Video {
   isFeatured Boolean @default(false)
 
   // Timestamps
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // Soft delete
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime? // Soft delete
+  scheduledPublishAt DateTime? // When to auto-publish (for SCHEDULED status)
+  publishedAt        DateTime? // When the video was actually published
 
   // Relations
   comments     Comment[]
@@ -163,6 +167,7 @@ model Video {
   @@index([parentVideoId])
   @@index([createdAt])
   @@index([povGroupId])
+  @@index([scheduledPublishAt])
 }
 
 // ============================================================================
